@@ -70,11 +70,19 @@ def _text(row) -> str:
 
 
 def _detect_protein(row) -> str:
+    title = str(row.get("title", "") or "").lower()
     t = _text(row)
-    if re.search(FISH, t):   return "fish"
-    if re.search(PLANT_P, t): return "plant"
-    if re.search(POULTRY, t): return "poultry"
-    if re.search(RED_MEAT, t): return "red_meat"
+    # Title carries the strongest signal — the main protein named in the dish name
+    # overrides side-dish ingredients (e.g. Buschbohnen in a beef dish must not
+    # reclassify the recipe as plant protein)
+    if re.search(RED_MEAT, title): return "red_meat"
+    if re.search(FISH,     title): return "fish"
+    if re.search(POULTRY,  title): return "poultry"
+    # Fall back to full ingredient text — plant dishes often have no animal keyword in title
+    if re.search(PLANT_P,  t):     return "plant"
+    if re.search(RED_MEAT, t):     return "red_meat"
+    if re.search(FISH,     t):     return "fish"
+    if re.search(POULTRY,  t):     return "poultry"
     return "other"
 
 

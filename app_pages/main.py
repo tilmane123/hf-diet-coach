@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from config import MARKETS, DIETS, DIET_DESCRIPTIONS, DIET_COLORS
-from menu_data import get_available_weeks, fetch_menu
+from menu_data import get_available_weeks, fetch_menu, diverse_top_n
 from scoring import score_menu
 from settings_store import get_weights
 
@@ -35,7 +35,7 @@ with st.sidebar:
         width=150,
     )
     st.title("HF Diet Coach")
-    st.caption("Best-fit HelloFresh recipes for any diet. · v0.21")
+    st.caption("Best-fit HelloFresh recipes for any diet. · v0.22")
     st.divider()
 
     market_label = st.selectbox("🌍 Market", list(MARKETS.keys()))
@@ -150,8 +150,9 @@ if scored.empty or scored["score"].max() == 0:
     st.warning("Recipes were found but none could be scored — nutritional data may be missing for this market/week.")
     st.stop()
 
-top5    = scored.iloc[:5].reset_index(drop=True)
-runner5 = scored.iloc[5:10].reset_index(drop=True)
+diverse = diverse_top_n(scored, n=10, max_per_flavor=1)
+top5    = diverse.iloc[:5].reset_index(drop=True)
+runner5 = diverse.iloc[5:10].reset_index(drop=True)
 
 total_recipes = len(scored)
 st.caption(f"Scored {total_recipes} recipes · showing top 10")

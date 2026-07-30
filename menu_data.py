@@ -1,9 +1,87 @@
 import datetime
+import re as _re
+from difflib import SequenceMatcher
+
 import pandas as pd
 import streamlit as st
 from db_connector import run_query, run_queries
 
 _BATCH_SIZE = 50  # max recipe IDs per IN clause — keeps queries small on large markets
+
+# ── Recipe deduplication helpers (module-level so diverse_top_n can reuse them) ──
+
+# Strip trailing diet labels and "mit/with/met/..." + up to 5 words
+# ({0,4} = 1 mandatory + 4 optional = max 5 words after the connector)
+_STRIP_RE = _re.compile(
+    r"\s*[\(\[]?\s*(bio|organic|vegan|veggie|vegetarisch|vegetarian|vegán)\s*[\)\]]?\s*$"
+    r"|\s*[-–]?\s*(mit|with|met|avec|med|con|ohne|without)\s+[^\s,]+(\s+[^\s,]+){0,4}\s*$",
+    _re.IGNORECASE,
+)
+_PREFIX_RE = _re.compile(
+    r"^(bio|organic|vegan\w*|veggi\w*|vegetar\w*|bunter?|bunte?)\s+",
+    _re.IGNORECASE,
+)
+_PUNCT_RE = _re.compile(r"[-–/]")
+
+# Sauce/flavor keywords that define recipe identity — used by diverse_top_n
+_FLAVOR_KW = _re.compile(
+    r"\b(chimichurri|pesto|teriyaki|tikka|masala|curry|bolognese|arrabiata|"
+    r"carbonara|stroganoff|shawarma|korma|satay|tahini|harissa|mole|gremolata|"
+    r"aioli|romesco|piccata|marsala|cacciatore|salsa\s*verde)\b",
+    _re.IGNORECASE,
+)
+
+
+def _base(title: str) -> str:
+    """Normalise a recipe title to its core dish name for deduplication."""
+    t = _PUNCT_RE.sub(" ", str(title)).strip().lower()
+    for _ in range(2):
+        t_new = _PREFIX_RE.sub("", t).strip()
+        if t_new == t:
+            break
+        t = t_new
+    for _ in range(3):
+        t_new = _STRIP_RE.sub("", t).strip()
+        if t_new == t:
+            break
+        t = t_new
+    return t
+
+
+def _flavor_keys(title: str) -> set:
+    return {m.group().lower().replace(" ", "_") for m in _FLAVOR_KW.finditer(title)}
+
+
+def diverse_top_n(scored_df: pd.DataFrame, n: int = 10, max_per_flavor: int = 1) -> pd.DataFrame:
+    """
+    Pick up to n recipes from a score-sorted DataFrame enforcing variety:
+    - No more than max_per_flavor recipes share the same sauce/flavor keyword
+    - No two recipes with a base-title similarity >= 0.55
+    This prevents the same dish concept (e.g. 3x chimichurri, 2x Linsensalat)
+    from dominating the selection even when they score well.
+    """
+    selected_rows = []
+    flavor_counts: dict = {}
+    selected_bases: list = []
+
+    for _, row in scored_df.iterrows():
+        if len(selected_rows) >= n:
+            break
+        title   = str(row.get("title", "") or "")
+        base    = _base(title)
+        flavors = _flavor_keys(title)
+
+        if any(flavor_counts.get(f, 0) >= max_per_flavor for f in flavors):
+            continue
+        if any(SequenceMatcher(None, base, b).ratio() >= 0.55 for b in selected_bases):
+            continue
+
+        selected_rows.append(row)
+        selected_bases.append(base)
+        for f in flavors:
+            flavor_counts[f] = flavor_counts.get(f, 0) + 1
+
+    return pd.DataFrame(selected_rows).reset_index(drop=True)
 
 
 def _week_window() -> tuple[tuple[int, int], tuple[int, int]]:
@@ -177,38 +255,6 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
     })
 
     # Deduplicate recipe variants — same dish in multiple editions
-    import re as _re
-    from difflib import SequenceMatcher
-
-    # Strips trailing diet labels and "mit/with/met/..." + up to 4 words
-    _STRIP_RE = _re.compile(
-        r"\s*[\(\[]?\s*(bio|organic|vegan|veggie|vegetarisch|vegetarian|vegán)\s*[\)\]]?\s*$"
-        r"|\s*[-–]?\s*(mit|with|met|avec|med|con|ohne|without)\s+[^\s,]+(\s+[^\s,]+){0,3}\s*$",
-        _re.IGNORECASE,
-    )
-    # Strips leading diet labels: "Veganer ...", "Bio ...", "Veggie ..."
-    _PREFIX_RE = _re.compile(
-        r"^(bio|organic|vegan\w*|veggi\w*|vegetar\w*)\s+",
-        _re.IGNORECASE,
-    )
-    _PUNCT_RE = _re.compile(r"[-–/]")
-
-    def _base(title: str) -> str:
-        t = _PUNCT_RE.sub(" ", str(title)).strip().lower()
-        # Strip leading diet labels first
-        for _ in range(2):
-            t_new = _PREFIX_RE.sub("", t).strip()
-            if t_new == t:
-                break
-            t = t_new
-        # Strip trailing variant suffixes
-        for _ in range(3):
-            t_new = _STRIP_RE.sub("", t).strip()
-            if t_new == t:
-                break
-            t = t_new
-        return t
-
     df = df.sort_values("slot").reset_index(drop=True)
     df["_base"] = df["title"].fillna("").apply(_base)
 
