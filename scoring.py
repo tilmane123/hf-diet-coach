@@ -296,4 +296,24 @@ def score_menu(df: pd.DataFrame, diet_key: str, weights: dict | None = None) -> 
     used_both       = used_in_top | set(runner5["recipe_id"].tolist())
     remainder       = out[~out["recipe_id"].isin(used_both)].reset_index(drop=True)
 
-    return pd.concat([top5, runner5, remainder], ignore_index=True)
+    result = pd.concat([top5, runner5, remainder], ignore_index=True)
+    return _rescale_scores(result)
+
+
+def _rescale_scores(df: pd.DataFrame, lo: float = 72.0, hi: float = 97.0) -> pd.DataFrame:
+    """
+    Rescale raw scores to [lo, hi] so the week's best recipe → hi and
+    the week's worst → lo. Preserves relative gaps; makes display numbers
+    sit comfortably in the 72–97 range instead of clustering around 50-60.
+    """
+    if df.empty or "score" not in df.columns:
+        return df
+    s_min = df["score"].min()
+    s_max = df["score"].max()
+    if s_max <= s_min:
+        df = df.copy()
+        df["score"] = round((lo + hi) / 2, 1)
+        return df
+    df = df.copy()
+    df["score"] = (lo + (df["score"] - s_min) / (s_max - s_min) * (hi - lo)).round(1)
+    return df
