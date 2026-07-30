@@ -48,8 +48,11 @@ def _base(title: str) -> str:
     return t
 
 
-def _flavor_keys(title: str) -> set:
-    return {m.group().lower().replace(" ", "_") for m in _FLAVOR_KW.finditer(title)}
+def _flavor_keys(title: str, sauce_paste: str = "") -> set:
+    keys = {m.group().lower().replace(" ", "_") for m in _FLAVOR_KW.finditer(title)}
+    if sauce_paste:
+        keys.add(sauce_paste.strip().lower().replace(" ", "_").replace("-", "_"))
+    return keys
 
 
 def diverse_top_n(scored_df: pd.DataFrame, n: int = 10, max_per_flavor: int = 1) -> pd.DataFrame:
@@ -69,7 +72,7 @@ def diverse_top_n(scored_df: pd.DataFrame, n: int = 10, max_per_flavor: int = 1)
             break
         title   = str(row.get("title", "") or "")
         base    = _base(title)
-        flavors = _flavor_keys(title)
+        flavors = _flavor_keys(title, str(row.get("sauce_paste", "") or ""))
 
         if any(flavor_counts.get(f, 0) >= max_per_flavor for f in flavors):
             continue
@@ -224,6 +227,60 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
         names["image_url"] = names["image_url"].apply(
             lambda u: u if (pd.notna(u) and str(u).startswith("http")) else None
         )
+
+    # ── Supplementary enrichment from public_edw_base_grain_live ─────────────
+    # Join on unique_recipe_code (old) ↔ recipe_code_unique (new).
+    # Provides: primary_protein (structured, replaces regex), sauce_paste
+    # (variety dedup), and fallback image_url (fixes UK missing images).
+    if not names.empty:
+        codes    = names["unique_recipe_code"].dropna().unique().tolist()
+        mkt_up   = market.upper()
+        code_str = "','".join(str(c) for c in codes)
+
+        try:
+            _contents = run_query(f"""
+                SELECT recipe_code_unique, primary_protein, sauce_paste
+                FROM glue.public_edw_base_grain_live.recipe_contents
+                WHERE market = '{mkt_up}'
+                  AND recipe_code_unique IN ('{code_str}')
+            """)
+        except Exception:
+            _contents = pd.DataFrame()
+
+        try:
+            _imgs = run_query(f"""
+                SELECT recipe_code_unique,
+                       image_url        AS _new_img,
+                       internal_image_url AS _int_img
+                FROM glue.public_edw_base_grain_live.recipe
+                WHERE market = '{mkt_up}'
+                  AND recipe_code_unique IN ('{code_str}')
+            """)
+        except Exception:
+            _imgs = pd.DataFrame()
+
+        if not _contents.empty:
+            _contents = _contents.drop_duplicates("recipe_code_unique")
+            names = names.merge(
+                _contents[["recipe_code_unique", "primary_protein", "sauce_paste"]],
+                left_on="unique_recipe_code", right_on="recipe_code_unique",
+                how="left",
+            ).drop(columns=["recipe_code_unique"], errors="ignore")
+
+        if not _imgs.empty:
+            _imgs = _imgs.drop_duplicates("recipe_code_unique")
+            names = names.merge(
+                _imgs, left_on="unique_recipe_code", right_on="recipe_code_unique",
+                how="left",
+            ).drop(columns=["recipe_code_unique"], errors="ignore")
+            # Apply fallback image: use new source when current URL is missing
+            for _col in ("_new_img", "_int_img"):
+                if _col in names.columns:
+                    _mask = names["image_url"].isna()
+                    names.loc[_mask, "image_url"] = names.loc[_mask, _col].apply(
+                        lambda u: u if (pd.notna(u) and str(u).startswith("http")) else None
+                    )
+            names = names.drop(columns=["_new_img", "_int_img"], errors="ignore")
 
     ing_agg = pd.DataFrame(columns=["recipe_id", "ingredients"])
     if not picklist.empty:

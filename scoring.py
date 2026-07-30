@@ -69,12 +69,36 @@ def _text(row) -> str:
     ]).lower()
 
 
+_PP_MAP = {
+    "red_meat": ("beef", "pork", "lamb", "veal", "venison", "bison", "rabbit", "duck"),
+    "poultry":  ("chicken", "turkey", "guinea", "quail", "partridge"),
+    "fish":     ("salmon", "cod", "tuna", "shrimp", "prawn", "fish", "hake",
+                 "tilapia", "trout", "pangasius", "shellfish", "crab", "lobster"),
+    "plant":    ("veggie", "vegetarian", "vegan", "tofu", "tempeh", "lentil",
+                 "chickpea", "bean", "falafel", "quorn", "seitan", "halloumi",
+                 "plant", "legume"),
+}
+
+def _map_primary_protein(pp: str) -> str | None:
+    """Map structured primary_protein values (e.g. 'Beef-Steak') to our 5 categories."""
+    pp_lower = pp.lower()
+    for cat, keywords in _PP_MAP.items():
+        if any(kw in pp_lower for kw in keywords):
+            return cat
+    return None
+
+
 def _detect_protein(row) -> str:
+    # Structured primary_protein field (new Databricks source) — most reliable
+    pp = str(row.get("primary_protein", "") or "").strip()
+    if pp:
+        mapped = _map_primary_protein(pp)
+        if mapped:
+            return mapped
+
+    # Title-first regex — overrides ingredient text for side-dish false positives
     title = str(row.get("title", "") or "").lower()
     t = _text(row)
-    # Title carries the strongest signal — the main protein named in the dish name
-    # overrides side-dish ingredients (e.g. Buschbohnen in a beef dish must not
-    # reclassify the recipe as plant protein)
     if re.search(RED_MEAT, title): return "red_meat"
     if re.search(FISH,     title): return "fish"
     if re.search(POULTRY,  title): return "poultry"
