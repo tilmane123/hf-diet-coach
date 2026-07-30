@@ -55,17 +55,18 @@ def _flavor_keys(title: str, sauce_paste: str = "") -> set:
     return keys
 
 
-def diverse_top_n(scored_df: pd.DataFrame, n: int = 10, max_per_flavor: int = 1) -> pd.DataFrame:
+def diverse_top_n(scored_df: pd.DataFrame, n: int = 10, max_per_flavor: int = 1,
+                  sim_threshold: float = 0.55, seed_bases: list = None) -> pd.DataFrame:
     """
     Pick up to n recipes from a score-sorted DataFrame enforcing variety:
     - No more than max_per_flavor recipes share the same sauce/flavor keyword
-    - No two recipes with a base-title similarity >= 0.55
-    This prevents the same dish concept (e.g. 3x chimichurri, 2x Linsensalat)
-    from dominating the selection even when they score well.
+    - No two recipes with a base-title similarity >= sim_threshold
+    seed_bases: pre-populated list of base titles to check against (used so
+    runner-up selections don't duplicate top-5 even at a relaxed threshold).
     """
     selected_rows = []
     flavor_counts: dict = {}
-    selected_bases: list = []
+    selected_bases: list = list(seed_bases or [])
 
     for _, row in scored_df.iterrows():
         if len(selected_rows) >= n:
@@ -76,7 +77,7 @@ def diverse_top_n(scored_df: pd.DataFrame, n: int = 10, max_per_flavor: int = 1)
 
         if any(flavor_counts.get(f, 0) >= max_per_flavor for f in flavors):
             continue
-        if any(SequenceMatcher(None, base, b).ratio() >= 0.55 for b in selected_bases):
+        if any(SequenceMatcher(None, base, b).ratio() >= sim_threshold for b in selected_bases):
             continue
 
         selected_rows.append(row)

@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from config import MARKETS, DIETS, DIET_DESCRIPTIONS, DIET_COLORS
-from menu_data import get_available_weeks, fetch_menu, diverse_top_n
+from menu_data import get_available_weeks, fetch_menu, diverse_top_n, _base
 from scoring import score_menu
 from settings_store import get_weights
 
@@ -35,7 +35,7 @@ with st.sidebar:
         width=150,
     )
     st.title("HF Diet Coach")
-    st.caption("Best-fit HelloFresh recipes for any diet. · v0.23")
+    st.caption("Best-fit HelloFresh recipes for any diet. · v0.24")
     st.divider()
 
     market_label = st.selectbox("🌍 Market", list(MARKETS.keys()))
@@ -150,9 +150,15 @@ if scored.empty or scored["score"].max() == 0:
     st.warning("Recipes were found but none could be scored — nutritional data may be missing for this market/week.")
     st.stop()
 
-diverse = diverse_top_n(scored, n=10, max_per_flavor=1)
-top5    = diverse.iloc[:5].reset_index(drop=True)
-runner5 = diverse.iloc[5:10].reset_index(drop=True)
+# Top 5: strict similarity threshold (0.55)
+top5 = diverse_top_n(scored, n=5, max_per_flavor=1, sim_threshold=0.55)
+
+# Runner-up 5: relaxed threshold (0.40), seeded with top-5 bases so no duplicates
+top5_ids    = set(top5["recipe_id"].tolist()) if "recipe_id" in top5.columns else set()
+top5_bases  = [_base(str(t)) for t in top5["title"].tolist()]
+remaining   = scored[~scored["recipe_id"].isin(top5_ids)].reset_index(drop=True)
+runner5     = diverse_top_n(remaining, n=5, max_per_flavor=1, sim_threshold=0.40,
+                             seed_bases=top5_bases)
 
 total_recipes = len(scored)
 st.caption(f"Scored {total_recipes} recipes · showing top 10")
