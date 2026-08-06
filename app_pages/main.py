@@ -36,7 +36,7 @@ with st.sidebar:
         width=150,
     )
     st.title("HF Diet Coach")
-    st.caption("Best-fit HelloFresh recipes for any diet. · v0.25")
+    st.caption("Best-fit HelloFresh recipes for any diet. · v0.26")
     st.divider()
 
     market_label = st.selectbox("🌍 Market", list(MARKETS.keys()))
@@ -166,39 +166,9 @@ st.caption(f"Scored {total_recipes} recipes · showing top 10")
 
 
 # ── Nutrient helpers ──────────────────────────────────────────────────────────
-# Substring list — handles German compound words (Babyspinat, Frühlingszwiebeln, etc.)
-_VEGGIES = [
-    # German roots (match anywhere in word)
-    "spinat", "tomat", "gurke", "paprika", "zwiebel", "brokkoli", "karotte", "möhre",
-    "kohlrabi", "zucchini", "aubergine", "blumenkohl", "rosenkohl", "rucola", "feldsalat",
-    "erbse", "bohne", "mais", "sellerie", "lauch", "fenchel", "champignon", "pilze",
-    "kürbis", "spargel", "pak choi", "pakchoi", "süßkartoffel", "avocado", "artischocke",
-    "grünkohl", "wirsing", "mangold", "rote bete", "rote-bete", "pastinake", "radiesch",
-    "rettich", "kichererbse", "linse", "edamame", "sojasprossen", "mungobohne",
-    # English roots
-    "spinach", "tomato", "cucumber", "pepper", "onion", "broccoli", "carrot", "courgette",
-    "cabbage", "cauliflower", "lettuce", "rocket", "mushroom", "beetroot", "asparagus",
-    "kale", "pumpkin", "squash", "fennel", "leek", "celery", "eggplant", "aubergine",
-    "chickpea", "lentil", "sweet potato", "bok choy",
-    # Dutch
-    "komkommer", "spinazie", "wortel", "peen", "bloemkool", "rode kool", "spruitje",
-    "sla", "andijvie", "prei", "venkel", "pompoen", "asperge", "erwt", "boon",
-    "selderij", "rode biet", "zoete aardappel", "snijboon", "peultje",
-    "uien", "rode ui", "witte ui", "sjalot", "lente-ui", "lenteui",
-    # French
-    "concombre", "épinard", "carotte", "chou-fleur", "brocoli", "courgette",
-    "haricot", "poireau", "fenouil", "courge", "asperge", "laitue", "roquette",
-    "champignon", "betterave", "potiron", "pois chiche", "lentille",
-    # Swedish / Danish / Norwegian
-    "gurka", "spenat", "morot", "blomkål", "brysselkål", "sallad", "purjolök",
-    "fänkål", "pumpa", "sparris", "ärta", "böna", "selleri", "rödkål",
-    "agurk", "spinat", "gulerod", "blomkål", "rosenkål",
-]
-
-def _count_veggies(ingredients: list) -> int:
-    """Count distinct vegetable types — substring match handles compound words."""
-    text = " ".join(str(i) for i in (ingredients or [])).lower()
-    return sum(1 for v in _VEGGIES if v in text)
+def _count_veggies(row) -> int:
+    """Read pre-computed PHF fresh-produce count from fetch_menu()."""
+    return int(row.get("veggie_count") or 0)
 
 # Fixed per-recipe reference values (one dinner out of ~3 meals/day)
 _REF = {"fibre": 8.0, "protein": 20.0, "sat_fat": 7.0, "veggies": 3}
@@ -238,7 +208,7 @@ def render_card(row, rank: int, color: str, dimmed: bool = False):
     fibre    = float(row.get("fibre") or 0)
     sfat     = float(row.get("sat_fat") or 0)
     ings     = row.get("ingredients") or []
-    veggies  = _count_veggies(ings)
+    veggies  = _count_veggies(row)
     diff     = row.get("difficulty") or ""
     t_time   = row.get("total_time") or ""
 
@@ -272,7 +242,7 @@ def render_card(row, rank: int, color: str, dimmed: bool = False):
           {_nut_chip(f"💪 {prot:.0f}g prot", prot, _REF["protein"])}
           {_nut_chip(f"🌾 {fibre:.1f}g fibre", fibre, _REF["fibre"])}
           {_nut_chip(f"🧈 {sfat:.1f}g sat.fat", sfat, _REF["sat_fat"], invert=True)}
-          {_nut_chip(f"🥦 {veggies} veggies", veggies, _REF["veggies"])}
+          {_nut_chip(f"🥦 {veggies} fresh", veggies, _REF["veggies"])}
         </div>
         {"<div class='ing'>" + ing_text + "</div>" if ing_text else ""}
         {"<div style='font-size:11px;color:#aaa;margin-top:5px;'>" + " · ".join(meta_bits) + "</div>" if meta_bits else ""}
@@ -298,7 +268,7 @@ def weekly_score_card(group: pd.DataFrame, diet_key: str, weights: dict, color: 
     fibre_avg  = group["fibre"].fillna(0).astype(float).mean()
     prot_avg   = group["protein"].fillna(0).astype(float).mean()
     sfat_avg   = group["sat_fat"].fillna(0).astype(float).mean()
-    veggie_avg = group.apply(lambda r: _count_veggies(r.get("ingredients") or []), axis=1).mean()
+    veggie_avg = group.apply(_count_veggies, axis=1).mean()
 
     # Targets — diet-specific where available, else sensible defaults
     fibre_tgt  = float(weights.get("fibre_target_g", 8.0))

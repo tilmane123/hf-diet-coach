@@ -209,13 +209,13 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
         """,
         "picklist": f"""
             WITH latest AS (
-                SELECT recipe_id, name,
+                SELECT recipe_id, name, code,
                        ROW_NUMBER() OVER (PARTITION BY recipe_id, name ORDER BY published_at DESC) AS rn
                 FROM glue.culinary_services.recipe_procurement_picklist_culinarysku_global
                 WHERE market = '{market}' AND segment_name = '{segment}'
                   AND recipe_id IN ('{id_str}')
             )
-            SELECT recipe_id, name FROM latest WHERE rn = 1 ORDER BY recipe_id, name
+            SELECT recipe_id, name, code FROM latest WHERE rn = 1 ORDER BY recipe_id, name
         """,
     })
 
@@ -283,7 +283,8 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
                     )
             names = names.drop(columns=["_new_img", "_int_img"], errors="ignore")
 
-    ing_agg = pd.DataFrame(columns=["recipe_id", "ingredients"])
+    ing_agg     = pd.DataFrame(columns=["recipe_id", "ingredients"])
+    veggie_agg  = pd.DataFrame(columns=["recipe_id", "veggie_count"])
     if not picklist.empty:
         ing_agg = (
             picklist.groupby("recipe_id")["name"]
@@ -291,6 +292,15 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
             .reset_index()
             .rename(columns={"name": "ingredients"})
         )
+        # Count distinct fresh-produce items (PHF = fresh fruit & veg)
+        phf = picklist[picklist["code"].str.startswith("PHF", na=False)]
+        if not phf.empty:
+            veggie_agg = (
+                phf.groupby("recipe_id")["name"]
+                .nunique()
+                .reset_index()
+                .rename(columns={"name": "veggie_count"})
+            )
 
     # Join + final dedup
     df = (
@@ -298,7 +308,9 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
         .merge(names, on="recipe_id", how="left")
         .merge(nutrition, on="recipe_id", how="left")
         .merge(ing_agg, on="recipe_id", how="left")
+        .merge(veggie_agg, on="recipe_id", how="left")
     )
+    df["veggie_count"] = df["veggie_count"].fillna(0).astype(int)
     df = df.drop_duplicates(subset=["recipe_id"], keep="first").reset_index(drop=True)
 
     # Rename columns early so dedup code can reference 'slot'
