@@ -180,22 +180,50 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
     ids = [str(x) for x in menu["recipe_id"].dropna().unique().tolist()]
     id_str = "','".join(ids)
 
-    # Steps 2-4: run all enrichment queries over a single shared connection
+    mkt_up = market.upper()
+
+    # Steps 2-4: run all enrichment queries over the cached connection
     res = run_queries({
         "names": f"""
             WITH t AS (
                 SELECT t.recipe_id, t.title, t.subtitle,
-                       r.image_url, r.unique_recipe_code, r.difficulty, r.dish_type,
+                       r.image_url AS old_img, r.unique_recipe_code, r.difficulty, r.dish_type,
                        r.active_cooking_time, r.total_time,
                        ROW_NUMBER() OVER (PARTITION BY t.recipe_id ORDER BY t.published_at DESC) AS rn
                 FROM glue.culinary_services.recipe_editorial_translations_global t
                 LEFT JOIN glue.culinary_services.recipe_global r ON t.recipe_id = r.id
                 WHERE t.locale = '{locale}' AND t.market = '{market}'
                   AND t.recipe_id IN ('{id_str}')
+            ),
+            base AS (
+                SELECT recipe_id, title, subtitle, old_img, unique_recipe_code,
+                       difficulty, dish_type, active_cooking_time, total_time
+                FROM t WHERE rn = 1
+            ),
+            rc AS (
+                SELECT recipe_code_unique, primary_protein, sauce_paste,
+                       ROW_NUMBER() OVER (PARTITION BY recipe_code_unique ORDER BY recipe_code_unique) AS rn
+                FROM glue.public_edw_base_grain_live.recipe_contents
+                WHERE market = '{mkt_up}'
+            ),
+            nr AS (
+                SELECT recipe_code_unique, image_url AS new_img, internal_image_url AS int_img,
+                       ROW_NUMBER() OVER (PARTITION BY recipe_code_unique ORDER BY recipe_code_unique) AS rn
+                FROM glue.public_edw_base_grain_live.recipe
+                WHERE market = '{mkt_up}'
             )
-            SELECT recipe_id, title, subtitle, image_url, unique_recipe_code,
-                   difficulty, dish_type, active_cooking_time, total_time
-            FROM t WHERE rn = 1
+            SELECT b.recipe_id, b.title, b.subtitle, b.unique_recipe_code,
+                   b.difficulty, b.dish_type, b.active_cooking_time, b.total_time,
+                   rc.primary_protein, rc.sauce_paste,
+                   CASE
+                     WHEN b.old_img IS NOT NULL AND b.old_img LIKE 'http%' THEN b.old_img
+                     WHEN nr.new_img IS NOT NULL AND nr.new_img LIKE 'http%' THEN nr.new_img
+                     WHEN nr.int_img IS NOT NULL AND nr.int_img LIKE 'http%' THEN nr.int_img
+                     ELSE NULL
+                   END AS image_url
+            FROM base b
+            LEFT JOIN rc ON rc.recipe_code_unique = b.unique_recipe_code AND rc.rn = 1
+            LEFT JOIN nr ON nr.recipe_code_unique = b.unique_recipe_code AND nr.rn = 1
         """,
         "nutrition": f"""
             WITH ranked AS (
@@ -219,69 +247,9 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
         """,
     })
 
-    names    = res["names"].drop_duplicates(subset=["recipe_id"], keep="first")
+    names     = res["names"].drop_duplicates(subset=["recipe_id"], keep="first")
     nutrition = res["nutrition"].drop(columns=["rn"], errors="ignore").drop_duplicates(subset=["recipe_id"], keep="first")
     picklist  = res["picklist"]
-
-    # Normalise image_url — keep valid http URLs, set rest to None
-    if not names.empty:
-        names["image_url"] = names["image_url"].apply(
-            lambda u: u if (pd.notna(u) and str(u).startswith("http")) else None
-        )
-
-    # ── Supplementary enrichment from public_edw_base_grain_live ─────────────
-    # Join on unique_recipe_code (old) ↔ recipe_code_unique (new).
-    # Provides: primary_protein (structured, replaces regex), sauce_paste
-    # (variety dedup), and fallback image_url (fixes UK missing images).
-    if not names.empty:
-        codes    = names["unique_recipe_code"].dropna().unique().tolist()
-        mkt_up   = market.upper()
-        code_str = "','".join(str(c) for c in codes)
-
-        try:
-            _contents = run_query(f"""
-                SELECT recipe_code_unique, primary_protein, sauce_paste
-                FROM glue.public_edw_base_grain_live.recipe_contents
-                WHERE market = '{mkt_up}'
-                  AND recipe_code_unique IN ('{code_str}')
-            """)
-        except Exception:
-            _contents = pd.DataFrame()
-
-        try:
-            _imgs = run_query(f"""
-                SELECT recipe_code_unique,
-                       image_url        AS _new_img,
-                       internal_image_url AS _int_img
-                FROM glue.public_edw_base_grain_live.recipe
-                WHERE market = '{mkt_up}'
-                  AND recipe_code_unique IN ('{code_str}')
-            """)
-        except Exception:
-            _imgs = pd.DataFrame()
-
-        if not _contents.empty:
-            _contents = _contents.drop_duplicates("recipe_code_unique")
-            names = names.merge(
-                _contents[["recipe_code_unique", "primary_protein", "sauce_paste"]],
-                left_on="unique_recipe_code", right_on="recipe_code_unique",
-                how="left",
-            ).drop(columns=["recipe_code_unique"], errors="ignore")
-
-        if not _imgs.empty:
-            _imgs = _imgs.drop_duplicates("recipe_code_unique")
-            names = names.merge(
-                _imgs, left_on="unique_recipe_code", right_on="recipe_code_unique",
-                how="left",
-            ).drop(columns=["recipe_code_unique"], errors="ignore")
-            # Apply fallback image: use new source when current URL is missing
-            for _col in ("_new_img", "_int_img"):
-                if _col in names.columns:
-                    _mask = names["image_url"].isna()
-                    names.loc[_mask, "image_url"] = names.loc[_mask, _col].apply(
-                        lambda u: u if (pd.notna(u) and str(u).startswith("http")) else None
-                    )
-            names = names.drop(columns=["_new_img", "_int_img"], errors="ignore")
 
     ing_agg     = pd.DataFrame(columns=["recipe_id", "ingredients"])
     veggie_agg  = pd.DataFrame(columns=["recipe_id", "veggie_count"])

@@ -9,7 +9,6 @@ _CHUNK_SIZE = 1000
 
 
 def _get_secret(key: str) -> str:
-    """Read from st.secrets (Streamlit Cloud) or fall back to env / .env file."""
     try:
         import streamlit as st
         return st.secrets[key]
@@ -28,6 +27,23 @@ def _make_connection():
     )
 
 
+def _get_connection():
+    """Return a cached Databricks connection, creating one if needed.
+    Cached at module level so it survives across Streamlit reruns."""
+    try:
+        import streamlit as st
+        # Use st.cache_resource when running inside Streamlit
+        @st.cache_resource
+        def _cached():
+            return _make_connection()
+        return _cached()
+    except Exception:
+        # Fallback for scripts run outside Streamlit
+        if not hasattr(_get_connection, "_conn"):
+            _get_connection._conn = _make_connection()
+        return _get_connection._conn
+
+
 def _execute(cursor, query: str) -> pd.DataFrame:
     cursor.execute(query)
     cols = [d[0] for d in cursor.description]
@@ -40,23 +56,33 @@ def _execute(cursor, query: str) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=cols)
 
 
+def _run(query: str, conn) -> pd.DataFrame:
+    with conn.cursor() as cursor:
+        return _execute(cursor, query)
+
+
 def run_query(query: str) -> pd.DataFrame:
-    """Single query — opens and closes its own connection."""
-    with _make_connection() as conn:
-        with conn.cursor() as cursor:
-            return _execute(cursor, query)
+    """Single query using the cached connection; reconnects once on failure."""
+    try:
+        return _run(query, _get_connection())
+    except Exception:
+        try:
+            import streamlit as st
+            st.cache_resource.clear()
+        except Exception:
+            if hasattr(_get_connection, "_conn"):
+                del _get_connection._conn
+        return _run(query, _get_connection())
 
 
 def run_queries(queries: dict) -> dict:
-    """Run multiple named queries over a single shared connection (one cursor each).
-    Returns {name: DataFrame}. Raises on connection failure; logs per-query errors."""
+    """Run multiple named queries over the cached connection."""
     results = {}
-    with _make_connection() as conn:
-        for name, query in queries.items():
-            with conn.cursor() as cursor:
-                try:
-                    results[name] = _execute(cursor, query)
-                except Exception as e:
-                    print(f"[run_queries] query '{name}' failed: {e}")
-                    results[name] = pd.DataFrame()
+    conn = _get_connection()
+    for name, query in queries.items():
+        try:
+            results[name] = _run(query, conn)
+        except Exception as e:
+            print(f"[run_queries] '{name}' failed: {e}")
+            results[name] = pd.DataFrame()
     return results

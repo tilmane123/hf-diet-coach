@@ -36,7 +36,7 @@ with st.sidebar:
         width=150,
     )
     st.title("HF Diet Coach")
-    st.caption("Best-fit HelloFresh recipes for any diet. · v0.26")
+    st.caption("Best-fit HelloFresh recipes for any diet. · v0.27")
     st.divider()
 
     market_label = st.selectbox("🌍 Market", list(MARKETS.keys()))
