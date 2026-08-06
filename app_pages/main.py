@@ -1,7 +1,6 @@
 """Main recipe-finder page."""
 
 import io
-import re
 import copy
 import pandas as pd
 import streamlit as st
@@ -167,24 +166,26 @@ st.caption(f"Scored {total_recipes} recipes · showing top 10")
 
 
 # ── Nutrient helpers ──────────────────────────────────────────────────────────
-_VEGGIE_RE = re.compile(
-    r"\b(spinat|tomate\w*|gurke\w*|paprika|zwiebel\w*|brokkoli|karotte\w*|möhre\w*|kohlrabi|"
-    r"zucchini|aubergine|kohl\b|blumenkohl|rosenkohl|rucola|feldsalat|erbse\w*|bohne\w*|"
-    r"mais\b|sellerie|lauch\b|fenchel|champignon\w*|pilz\w*|kürbis\w*|spargel|pak.?choi|"
-    r"süßkartoffel|avocado|artischocke|grünkohl|wirsing|mangold|rote.?bete|pastinake|"
-    r"tomato|cucumber|pepper|onion|broccoli|carrot|courgette|cabbage|cauliflower|spinach|"
-    r"lettuce|rocket|mushroom|beetroot|sweet.?potato|asparagus|kale|pumpkin|squash|fennel|"
-    r"leek|celery|pea\b|bean\b|corn\b|eggplant)\b",
-    re.IGNORECASE,
-)
+# Substring list — handles German compound words (Babyspinat, Frühlingszwiebeln, etc.)
+_VEGGIES = [
+    # German roots (match anywhere in word)
+    "spinat", "tomat", "gurke", "paprika", "zwiebel", "brokkoli", "karotte", "möhre",
+    "kohlrabi", "zucchini", "aubergine", "blumenkohl", "rosenkohl", "rucola", "feldsalat",
+    "erbse", "bohne", "mais", "sellerie", "lauch", "fenchel", "champignon", "pilze",
+    "kürbis", "spargel", "pak choi", "pakchoi", "süßkartoffel", "avocado", "artischocke",
+    "grünkohl", "wirsing", "mangold", "rote bete", "rote-bete", "pastinake", "radiesch",
+    "rettich", "kichererbse", "linse", "edamame", "sojasprossen", "mungobohne",
+    # English roots
+    "spinach", "tomato", "cucumber", "pepper", "onion", "broccoli", "carrot", "courgette",
+    "cabbage", "cauliflower", "lettuce", "rocket", "mushroom", "beetroot", "asparagus",
+    "kale", "pumpkin", "squash", "fennel", "leek", "celery", "eggplant", "aubergine",
+    "chickpea", "lentil", "sweet potato", "bok choy",
+]
 
 def _count_veggies(ingredients: list) -> int:
-    """Count distinct vegetable types in an ingredient list."""
-    found = set()
-    for ing in (ingredients or []):
-        for m in _VEGGIE_RE.finditer(str(ing)):
-            found.add(m.group().lower().rstrip("ns"))  # crude lemma
-    return len(found)
+    """Count distinct vegetable types — substring match handles compound words."""
+    text = " ".join(str(i) for i in (ingredients or [])).lower()
+    return sum(1 for v in _VEGGIES if v in text)
 
 # Fixed per-recipe reference values (one dinner out of ~3 meals/day)
 _REF = {"fibre": 8.0, "protein": 20.0, "sat_fat": 7.0, "veggies": 3}
