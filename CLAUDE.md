@@ -8,7 +8,7 @@ It gives full project context so you can pick up work without re-explaining the 
 ## What this app does
 
 A Streamlit app that scores and ranks HelloFresh weekly menus against 5 dietary frameworks
-(WHO, Mediterranean, Blue Zone, EAT-Lancet, DGE). For a selected market + week, it fetches
+(Health Conscious, Mediterranean, Blue Zone, EAT-Lancet, DGE). For a selected market + week, it fetches
 all recipes, scores each one, enforces group-level dietary rules, and renders a Top 5 +
 Runner-up 5 with nutritional detail cards.
 
@@ -115,14 +115,14 @@ Runs on the full scored pool before top5/runner5 split. Two layers:
 | 💪 Protein | 20g target | green ≥20g, amber ≥10g, red <10g |
 | 🌾 Fibre | 8g target | green ≥8g, amber ≥4g, red <4g |
 | 🧈 Sat. fat | 7g max | green ≤7g, amber ≤14g, red >14g (2× max) |
-| 🥦 Fresh (PHF) | 3 items | green ≥3, amber 1–2, red 0 |
+| 🥦 Vegetables (PHF) | 200 g/serving | green ≥200g, amber ≥100g, red <100g. Falls back to item count when no SKU states a weight |
 | 🔥 Calories | neutral grey | informational only |
 
 Red is reserved for >2× the recommended limit — keeps most recipes showing green/amber.
 
 ### Weekly score card
 Appears directly below the section header (before recipe cards).
-Shows average score + 4 bars (protein, fibre, sat. fat, fresh produce) for the group of 5.
+Shows average score + 4 bars (protein, fibre, sat. fat, vegetables) for the group of 5.
 Bar colour uses the same `_chip_color()` function as individual cards.
 
 ---
@@ -146,7 +146,7 @@ per (market, week, year) combination.
 | Netherlands | `benelux` | `nl-NL` | |
 | United Kingdom | `gb` | `en-GB` | Image fallback from new tables critical here |
 | France | `fr` | `fr-FR` | |
-| Scandinavia | `dkse` | `sv-SE` | |
+| Nordics | `dkse` | `sv-SE` | |
 
 ---
 
@@ -154,7 +154,7 @@ per (market, week, year) combination.
 
 | Key | Display name | Strictest constraint |
 |---|---|---|
-| `who` | WHO | Salt <5g/day, low sugar |
+| `who` | Health Conscious recipes | Salt <5g/day, low sugar |
 | `mediterranean` | Mediterranean | Olive oil / fish focus, moderate red meat |
 | `blue_zone` | Blue Zone | Zero red meat, very high fibre |
 | `eat_lancet` | EAT-Lancet | Zero red meat, plant-forward, kcal-aware |
@@ -168,7 +168,7 @@ per (market, week, year) combination.
   `UPPER('dach') = 'DACH'` ✓ and `UPPER('gb') = 'GB'` ✓ work. `benelux` → `'BENELUX'`
   may not match — verify if Netherlands enrichment (primary_protein, images) is working.
 - **PHF veggie count**: counts all PHF SKUs including fruit and herbs. This is intentional
-  (PHF = Produce, Herbs & Fruits). Label shows "🥦 X fresh" to reflect this.
+  (PHF = Produce, Herbs & Fruits). Shown as "🥦 Xg vegetables".
 - **Runner-up sometimes < 5**: on small markets (UK) with strict diets (EAT-Lancet),
   fewer than 5 diverse recipes may pass all filters. The relaxed 0.40 threshold helps but
   cannot fully compensate for a genuinely small menu pool.

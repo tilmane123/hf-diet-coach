@@ -6,7 +6,7 @@ Defaults are imported from config.DIET_WEIGHTS — override at call time to expe
 
 import re
 import pandas as pd
-from config import DIET_WEIGHTS, DIET_GROUP_RULES
+from config import DIET_WEIGHTS, DIET_GROUP_RULES, DIET_TAGS
 
 
 # ── Protein source detection ──────────────────────────────────────────────────
@@ -126,25 +126,55 @@ def _normalise_weights(weights: dict, keys: list) -> dict:
     return out
 
 
-# ── DGE ───────────────────────────────────────────────────────────────────────
+# ── Improve Sports Performance ────────────────────────────────────────────────
 
-def score_dge(row, weights: dict | None = None) -> float:
-    w = _normalise_weights(weights or DIET_WEIGHTS["dge"],
-                           ["w_fibre", "w_sfat", "w_salt", "w_sugar", "w_prot"])
+def score_sports(row, weights: dict | None = None) -> float:
+    """Protein grams lead; source quality modifies rather than dominates."""
+    w = _normalise_weights(weights or DIET_WEIGHTS["sports"],
+                           ["w_prot", "w_kcal", "w_fibre", "w_sfat", "w_salt"])
     kcal = float(row.get("calories") or 0)
     if kcal == 0: return 0.0
 
+    grams_s  = _clamp(float(row.get("protein") or 0) / w.get("protein_target_g", 30.0))
+    source_s = _prot_score(w, _detect_protein(row))
+    prot_s   = 0.75 * grams_s + 0.25 * source_s
+
+    kcal_s   = _clamp(1 - abs(kcal - w.get("kcal_target", 650)) / w.get("kcal_range", 350))
+    fibre_s  = _clamp(float(row.get("fibre") or 0) / w.get("fibre_target_g", 8))
+    sfat_pct = (float(row.get("sat_fat") or 0) * 9 / kcal)
+    sfat_s   = _clamp(1 - sfat_pct / w.get("sfat_max_pct", 0.12))
+    salt_s   = _clamp(1 - float(row.get("salt") or 0) / w.get("salt_max_g", 2.5))
+
+    return round((w["w_prot"] * prot_s + w["w_kcal"] * kcal_s +
+                  w["w_fibre"] * fibre_s + w["w_sfat"] * sfat_s +
+                  w["w_salt"] * salt_s) * 100, 1)
+
+
+# ── Maximized vegetables ──────────────────────────────────────────────────────
+
+def score_max_veggies(row, weights: dict | None = None) -> float:
+    """Grams of PHF fresh produce per serving lead the score."""
+    w = _normalise_weights(weights or DIET_WEIGHTS["max_veggies"],
+                           ["w_veg", "w_fibre", "w_prot", "w_kcal", "w_sfat"])
+    kcal = float(row.get("calories") or 0)
+    if kcal == 0: return 0.0
+
+    grams = float(row.get("veggie_grams") or 0)
+    if grams > 0:
+        veg_s = _clamp(grams / w.get("veg_target_g", 300.0))
+    else:
+        # No SKU states a weight (common in the UK list) — fall back to variety
+        veg_s = _clamp(float(row.get("veggie_count") or 0) / 8.0)
+
     fibre_s  = _clamp(float(row.get("fibre") or 0) / w.get("fibre_target_g", 10))
+    prot_s   = _prot_score(w, _detect_protein(row))
+    kcal_s   = _clamp(1 - abs(kcal - w.get("kcal_target", 550)) / w.get("kcal_range", 350))
     sfat_pct = (float(row.get("sat_fat") or 0) * 9 / kcal)
     sfat_s   = _clamp(1 - sfat_pct / w.get("sfat_max_pct", 0.10))
-    salt_s   = _clamp(1 - float(row.get("salt") or 0) / w.get("salt_max_g", 2.5))
-    sug_pct  = (float(row.get("sugars") or 0) * 4 / kcal)
-    sugar_s  = _clamp(1 - sug_pct / w.get("sugar_max_pct", 0.10))
-    prot_s   = _prot_score(w, _detect_protein(row))
 
-    return round((w["w_fibre"] * fibre_s + w["w_sfat"] * sfat_s +
-                  w["w_salt"] * salt_s + w["w_sugar"] * sugar_s +
-                  w["w_prot"] * prot_s) * 100, 1)
+    return round((w["w_veg"] * veg_s + w["w_fibre"] * fibre_s +
+                  w["w_prot"] * prot_s + w["w_kcal"] * kcal_s +
+                  w["w_sfat"] * sfat_s) * 100, 1)
 
 
 # ── EAT-Lancet ────────────────────────────────────────────────────────────────
@@ -236,12 +266,47 @@ def score_blue_zone(row, weights: dict | None = None) -> float:
 # ── Dispatcher ────────────────────────────────────────────────────────────────
 
 SCORE_FN = {
-    "dge":           score_dge,
+    "sports":        score_sports,
+    "max_veggies":   score_max_veggies,
     "eat_lancet":    score_eat_lancet,
     "who":           score_who,
     "mediterranean": score_mediterranean,
     "blue_zone":     score_blue_zone,
 }
+
+
+# ── CPS tag alignment ─────────────────────────────────────────────────────────
+# Share of the score set by whether a recipe carries the framework's CPS tags.
+# A boost rather than a hard filter: tag vocabularies differ per market, and
+# filtering would empty the results in markets that lack a given tag.
+TAG_BLEND = 0.25
+
+# Fit by number of primary tags matched. A secondary-only match scores 0.45.
+_TAG_STEPS = {0: 0.0, 1: 0.75, 2: 0.90}
+_SECONDARY_ONLY = 0.45
+
+
+def _tag_text(row) -> str:
+    """All tag-ish fields for a recipe, lowercased into one searchable string."""
+    return " ".join(
+        str(row.get(c) or "") for c in ("tags", "recipe_label", "target_preferences")
+    ).lower()
+
+
+def tag_fit(row, diet_key: str) -> float:
+    """How well a recipe's CPS tags match the framework, 0-1."""
+    spec = DIET_TAGS.get(diet_key)
+    if not spec:
+        return 0.0
+    text = _tag_text(row)
+    if not text.strip():
+        return 0.0
+    n_primary = sum(1 for p in spec.get("primary", []) if p in text)
+    if n_primary:
+        return _TAG_STEPS.get(n_primary, 1.0)
+    if any(s in text for s in spec.get("secondary", [])):
+        return _SECONDARY_ONLY
+    return 0.0
 
 
 def _safe_score(fn, row, weights) -> float:
@@ -291,13 +356,30 @@ def _enforce_group_rules(group: pd.DataFrame, rules: dict, pool: pd.DataFrame) -
     return group.sort_values("score", ascending=False).reset_index(drop=True)
 
 
-def score_menu(df: pd.DataFrame, diet_key: str, weights: dict | None = None) -> pd.DataFrame:
-    """Score all recipes, apply group rules to Top 5 and Runner-up 5, return full df."""
+def score_menu(df: pd.DataFrame, diet_key: str, weights: dict | None = None,
+               goal_keys=None, pref_keys=None) -> pd.DataFrame:
+    """Score all recipes, apply group rules to Top 5 and Runner-up 5, return full df.
+
+    goal_keys / pref_keys come from the pre-section questionnaire. They are
+    blended in here — before group rules and rescaling — so personalisation
+    changes which recipes reach the Top 5, not just their printed scores.
+    """
     if df.empty:
         return df.copy()
     fn = SCORE_FN[diet_key]
     out = df.copy()
     out["score"] = out.apply(lambda row: _safe_score(fn, row, weights), axis=1)
+
+    # CPS tag alignment — lifts recipes carrying the framework's tags
+    if diet_key in DIET_TAGS:
+        tf = out.apply(lambda row: tag_fit(row, diet_key), axis=1)
+        out["tag_fit"] = (tf * 100).round(0)
+        out["score"] = (out["score"] * (1 - TAG_BLEND) + tf * 100 * TAG_BLEND).round(1)
+
+    if goal_keys or pref_keys:
+        from goals import blend   # local import: goals.py imports from this module
+        out = blend(out, goal_keys, pref_keys)
+
     out = out.sort_values("score", ascending=False).reset_index(drop=True)
 
     rules = DIET_GROUP_RULES.get(diet_key, {})

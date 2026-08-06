@@ -8,10 +8,10 @@ A Streamlit app that scores and ranks HelloFresh weekly menus against 5 evidence
 
 ## What it does
 
-1. Select a **market** (Germany, UK, Netherlands, France, Scandinavia), **diet framework**, and **week**
+1. Select a **market** (Germany, UK, Netherlands, France, Nordics), **diet framework**, and **week**
 2. Click **Find best recipes** — the app fetches the full weekly menu from Databricks, scores every recipe nutritionally, and enforces group-level dietary rules
 3. Displays a **Top 5** (best fit) and **Runner-up 5** with:
-   - Colour-coded nutrient chips (protein, fibre, sat. fat, fresh produce count)
+   - Colour-coded nutrient chips (protein, fibre, sat. fat, vegetables in grams)
    - A weekly diet score card with progress bars
    - Recipe images, difficulty, cooking time, and ingredients
 
@@ -21,7 +21,7 @@ A Streamlit app that scores and ranks HelloFresh weekly menus against 5 evidence
 
 | Framework | Focus |
 |---|---|
-| 🌍 WHO | Strictest on salt and free sugars |
+| 🌍 Health Conscious | Strictest on salt and free sugars |
 | 🫒 Mediterranean | Fish, legumes, olive oil, whole grains |
 | 💙 Blue Zone | Zero red meat, high fibre, longevity diet |
 | 🌱 EAT-Lancet | Planetary health — plant-forward, minimal red meat |

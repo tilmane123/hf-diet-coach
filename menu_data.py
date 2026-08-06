@@ -88,6 +88,137 @@ def diverse_top_n(scored_df: pd.DataFrame, n: int = 10, max_per_flavor: int = 1,
     return pd.DataFrame(selected_rows).reset_index(drop=True)
 
 
+# Pack weight embedded in the SKU name. Covers every format seen in the data:
+#   "Gurke (300g)"  "Brokkoli Reis 800g"  "Sliced Mushrooms - 120g"
+#   "Zitrone (80-90g)" (range → midpoint)  "Kartoffeln (1kg)"
+_GRAM_RE = _re.compile(r"(\d+(?:[.,]\d+)?)\s*(?:-\s*(\d+(?:[.,]\d+)?)\s*)?(kg|g)\b", _re.I)
+
+# Preference order when choosing which serving-size pack list to read.
+# Nutrition is published per 2 servings, so size 2 first.
+_SIZE_PREFERENCE = ["2", "4", "3", "1"]
+
+
+def _pack_grams(name: str) -> float:
+    """Grams in a SKU pack, parsed from its name. 0.0 when the name states no weight.
+
+    Whole-produce SKUs ("Avocado", "Green Pepper") carry no weight — common in
+    the UK list — and contribute 0 rather than a guess.
+    """
+    best = 0.0
+    for m in _GRAM_RE.finditer(str(name or "")):
+        lo = float(m.group(1).replace(",", "."))
+        hi = float(m.group(2).replace(",", ".")) if m.group(2) else lo
+        val = (lo + hi) / 2
+        if m.group(3).lower() == "kg":
+            val *= 1000
+        best = max(best, val)
+    return best
+
+
+_CPS_TABLE = "glue.public_edw_base_grain_live.recipe_csku_ingredient_picklist"
+_CPS_SERVINGS = 2   # the 2P ingredient list
+
+
+def _fetch_cps_ingredients(names: pd.DataFrame, mkt_up: str, segment: str):
+    """Ingredient list + fresh-produce weight from the CPS 2-person picklist.
+
+    Returns (ing_agg, veggie_agg), both keyed on recipe_id.
+
+    CPS keys on recipe_code_unique, so this runs after the names query.
+    culinary_sku_ratio is the fraction of the pack a recipe uses at this
+    serving size (a 30 g ginger pack at ratio 0.5 contributes 15 g), which is
+    what the customer actually eats — more accurate than counting whole packs.
+    """
+    empty_ing = pd.DataFrame(columns=["recipe_id", "ingredients"])
+    empty_veg = pd.DataFrame(columns=["recipe_id", "veggie_count", "veggie_grams"])
+    if names.empty or "unique_recipe_code" not in names.columns:
+        return empty_ing, empty_veg
+
+    codes = [str(c) for c in names["unique_recipe_code"].dropna().unique() if str(c)]
+    if not codes:
+        return empty_ing, empty_veg
+
+    cps = _batched_query(f"""
+        SELECT recipe_code_unique, ingredient_name, culinary_sku_name,
+               culinary_sku_code, culinary_sku_ratio
+        FROM {_CPS_TABLE}
+        WHERE market = '{mkt_up}' AND segment = '{segment}'
+          AND servings_size = {_CPS_SERVINGS}
+          AND recipe_code_unique IN ('{{ids}}')
+    """, codes)
+
+    if cps.empty:
+        return empty_ing, empty_veg
+
+    # One row per SKU — the table can repeat a SKU across recipe versions
+    cps = cps.drop_duplicates(subset=["recipe_code_unique", "culinary_sku_code"],
+                              keep="first")
+    code_to_id = names.set_index("unique_recipe_code")["recipe_id"].to_dict()
+    cps["recipe_id"] = cps["recipe_code_unique"].map(code_to_id)
+    cps = cps[cps["recipe_id"].notna()]
+    if cps.empty:
+        return empty_ing, empty_veg
+
+    ing_agg = (
+        cps.sort_values("ingredient_name")
+        .groupby("recipe_id")["ingredient_name"]
+        .apply(lambda x: sorted({str(i) for i in x if str(i) not in ("", "nan")})[:12])
+        .reset_index()
+        .rename(columns={"ingredient_name": "ingredients"})
+    )
+
+    phf = cps[cps["culinary_sku_code"].str.contains("PHF", na=False)].copy()
+    if phf.empty:
+        return ing_agg, empty_veg
+
+    ratio = pd.to_numeric(phf["culinary_sku_ratio"], errors="coerce").fillna(0.0)
+    phf["_g"] = phf["culinary_sku_name"].map(_pack_grams) * ratio
+    veggie_agg = (
+        phf.groupby("recipe_id")
+        .agg(veggie_count=("ingredient_name", "nunique"), veggie_grams=("_g", "sum"))
+        .reset_index()
+    )
+    # Weights cover the whole 2-serving recipe — divide down to one serving
+    veggie_agg["veggie_grams"] = (veggie_agg["veggie_grams"] / _CPS_SERVINGS).round(0)
+    return ing_agg, veggie_agg
+
+
+def _pick_serving_size(picklist: pd.DataFrame) -> pd.DataFrame:
+    """Reduce the per-size pack list to the one serving size each recipe uses.
+
+    A recipe lists the same ingredient at several pack sizes (Rucola 50g / 75g /
+    100g), with servings_ratio marking which pack applies at which serving size
+    and how many are needed. Keeping only the active rows for one size also
+    stops the ingredient list showing three variants of the same vegetable.
+    Adds a '_servings' column holding the chosen size as an int.
+    """
+    if picklist.empty or "size" not in picklist.columns:
+        picklist = picklist.copy()
+        picklist["servings_ratio"] = 1.0
+        picklist["_servings"] = 2
+        return picklist
+
+    pl = picklist.copy()
+    pl["size"] = pl["size"].astype(str)
+    pl["servings_ratio"] = pd.to_numeric(pl["servings_ratio"], errors="coerce").fillna(0.0)
+
+    active = pl[pl["servings_ratio"] > 0]
+    if active.empty:
+        pl["_servings"] = 2
+        return pl.drop_duplicates(subset=["recipe_id", "name"], keep="first")
+
+    # Per recipe, take the first preferred size that actually has active packs
+    available = active.groupby("recipe_id")["size"].apply(set)
+    chosen = available.map(
+        lambda sizes: next((s for s in _SIZE_PREFERENCE if s in sizes), sorted(sizes)[0])
+    ).rename("_chosen")
+
+    out = active.merge(chosen, left_on="recipe_id", right_index=True, how="left")
+    out = out[out["size"] == out["_chosen"]].copy()
+    out["_servings"] = pd.to_numeric(out["_chosen"], errors="coerce").fillna(2).astype(int)
+    return out.drop(columns=["_chosen"])
+
+
 def _week_window() -> tuple[tuple[int, int], tuple[int, int]]:
     """Return (min_week, year), (max_week, year) — current week through current+2."""
     today = datetime.date.today()
@@ -208,6 +339,9 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
             ),
             nr AS (
                 SELECT recipe_code_unique, image_url AS new_img, internal_image_url AS int_img,
+                       CAST(tags AS STRING) AS tags,
+                       CAST(recipe_label AS STRING) AS recipe_label,
+                       CAST(target_preferences AS STRING) AS target_preferences,
                        ROW_NUMBER() OVER (PARTITION BY recipe_code_unique ORDER BY recipe_code_unique) AS rn
                 FROM glue.public_edw_base_grain_live.recipe
                 WHERE market = '{mkt_up}'
@@ -215,6 +349,7 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
             SELECT b.recipe_id, b.title, b.subtitle, b.unique_recipe_code,
                    b.difficulty, b.dish_type, b.active_cooking_time, b.total_time,
                    rc.primary_protein, rc.sauce_paste,
+                   nr.tags, nr.recipe_label, nr.target_preferences,
                    CASE
                      WHEN b.old_img IS NOT NULL AND b.old_img LIKE 'http%' THEN b.old_img
                      WHEN nr.new_img IS NOT NULL AND nr.new_img LIKE 'http%' THEN nr.new_img
@@ -235,40 +370,14 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
             )
             SELECT * FROM ranked WHERE rn = 1
         """,
-        "picklist": f"""
-            WITH latest AS (
-                SELECT recipe_id, name, code,
-                       ROW_NUMBER() OVER (PARTITION BY recipe_id, name ORDER BY published_at DESC) AS rn
-                FROM glue.culinary_services.recipe_procurement_picklist_culinarysku_global
-                WHERE market = '{market}' AND segment_name = '{segment}'
-                  AND recipe_id IN ('{id_str}')
-            )
-            SELECT recipe_id, name, code FROM latest WHERE rn = 1 ORDER BY recipe_id, name
-        """,
     })
 
     names     = res["names"].drop_duplicates(subset=["recipe_id"], keep="first")
     nutrition = res["nutrition"].drop(columns=["rn"], errors="ignore").drop_duplicates(subset=["recipe_id"], keep="first")
-    picklist  = res["picklist"]
 
-    ing_agg     = pd.DataFrame(columns=["recipe_id", "ingredients"])
-    veggie_agg  = pd.DataFrame(columns=["recipe_id", "veggie_count"])
-    if not picklist.empty:
-        ing_agg = (
-            picklist.groupby("recipe_id")["name"]
-            .apply(lambda x: list(x)[:12])
-            .reset_index()
-            .rename(columns={"name": "ingredients"})
-        )
-        # Count distinct fresh-produce items (PHF = fresh fruit & veg)
-        phf = picklist[picklist["code"].str.startswith("PHF", na=False)]
-        if not phf.empty:
-            veggie_agg = (
-                phf.groupby("recipe_id")["name"]
-                .nunique()
-                .reset_index()
-                .rename(columns={"name": "veggie_count"})
-            )
+    # Ingredients + produce weight from the CPS 2-person picklist, keyed on
+    # unique_recipe_code — so it needs the names result first.
+    ing_agg, veggie_agg = _fetch_cps_ingredients(names, mkt_up, segment)
 
     # Join + final dedup
     df = (
@@ -279,6 +388,7 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
         .merge(veggie_agg, on="recipe_id", how="left")
     )
     df["veggie_count"] = df["veggie_count"].fillna(0).astype(int)
+    df["veggie_grams"] = df.get("veggie_grams", pd.Series(dtype=float)).fillna(0.0)
     df = df.drop_duplicates(subset=["recipe_id"], keep="first").reset_index(drop=True)
 
     # Rename columns early so dedup code can reference 'slot'

@@ -1,7 +1,7 @@
-"""HF Diet Coach — v0.27"""
+"""HF Diet Coach — v0.28"""
 import streamlit as st
 
-_VERSION = "v0.27"
+_VERSION = "v0.28"
 if st.session_state.get("_cache_version") != _VERSION:
     st.cache_data.clear()
     st.session_state["_cache_version"] = _VERSION

@@ -3,7 +3,13 @@ import pandas as pd
 from databricks import sql
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
+_HERE = os.path.dirname(os.path.abspath(__file__))
+# .env lives either alongside this file or one level up (databricks_analytics/.env)
+for _candidate in (os.path.join(_HERE, ".env"), os.path.join(_HERE, "..", ".env")):
+    if os.path.exists(_candidate):
+        # utf-8-sig: .env may carry a BOM, which would mangle the first key name
+        load_dotenv(dotenv_path=_candidate, encoding="utf-8-sig")
+        break
 
 _CHUNK_SIZE = 1000
 

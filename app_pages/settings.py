@@ -11,11 +11,12 @@ diet_names = list(DIETS.keys())
 diet_keys  = list(DIETS.values())
 
 _SHORT = {
-    "who":           "WHO",
+    "who":           "Health Conscious",
+    "max_veggies":   "Max Veggies",
+    "sports":        "Sports Perf.",
     "mediterranean": "Mediterranean",
     "blue_zone":     "Blue Zone",
     "eat_lancet":    "EAT-Lancet",
-    "dge":           "DGE",
 }
 col_names = [_SHORT[dk] for dk in diet_keys]
 
@@ -44,7 +45,8 @@ st.caption("Session-only sidebar tweaks are not stored here — they reset each 
 st.divider()
 
 # ── Shared column widths ──────────────────────────────────────────────────────
-COL_W = [2.2, 1, 1.3, 1.2, 1.2, 0.9]   # [label, WHO, Mediter, Blue, EAT, DGE]
+# [label, then one per diet in DIETS order] — must stay len(DIETS)+1
+COL_W = [2.2] + [1.25] * len(diet_keys)
 
 def _diet_header_row():
     """Render the coloured diet-name header row."""

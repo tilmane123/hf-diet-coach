@@ -1,0 +1,11 @@
+[theme]
+base = "light"
+# HelloFresh brand green
+primaryColor = "#91C11E"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F1F8E5"
+textColor = "#1E2B14"
+font = "sans serif"
+
+[server]
+headless = true
