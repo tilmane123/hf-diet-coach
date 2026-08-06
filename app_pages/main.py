@@ -1,6 +1,7 @@
 """Main recipe-finder page."""
 
 import io
+import re
 import copy
 import pandas as pd
 import streamlit as st
@@ -21,7 +22,8 @@ st.markdown("""
   .card-sub { font-size:12px; color:#777; margin:0 0 8px; }
   .score-badge { display:inline-block; border-radius:20px; padding:3px 11px; font-size:13px; font-weight:700; color:#fff; }
   .nutrient-row { display:flex; gap:5px; flex-wrap:wrap; margin-top:8px; }
-  .nut { background:#f4f4f4; border-radius:6px; padding:2px 7px; font-size:11px; color:#444; }
+  .nut { border-radius:6px; padding:2px 7px; font-size:11px; color:#fff; font-weight:600; }
+  .nut-neutral { background:#f4f4f4; color:#444; font-weight:400; }
   .ing { font-size:11px; color:#666; margin-top:7px; line-height:1.55; }
   .section-header { font-size:18px; font-weight:700; margin:24px 0 12px; padding:8px 14px; border-radius:8px; color:#fff; }
   .runner-up-card { opacity:0.88; }
@@ -35,7 +37,7 @@ with st.sidebar:
         width=150,
     )
     st.title("HF Diet Coach")
-    st.caption("Best-fit HelloFresh recipes for any diet. · v0.24")
+    st.caption("Best-fit HelloFresh recipes for any diet. · v0.25")
     st.divider()
 
     market_label = st.selectbox("🌍 Market", list(MARKETS.keys()))
@@ -164,6 +166,53 @@ total_recipes = len(scored)
 st.caption(f"Scored {total_recipes} recipes · showing top 10")
 
 
+# ── Nutrient helpers ──────────────────────────────────────────────────────────
+_VEGGIE_RE = re.compile(
+    r"\b(spinat|tomate\w*|gurke\w*|paprika|zwiebel\w*|brokkoli|karotte\w*|möhre\w*|kohlrabi|"
+    r"zucchini|aubergine|kohl\b|blumenkohl|rosenkohl|rucola|feldsalat|erbse\w*|bohne\w*|"
+    r"mais\b|sellerie|lauch\b|fenchel|champignon\w*|pilz\w*|kürbis\w*|spargel|pak.?choi|"
+    r"süßkartoffel|avocado|artischocke|grünkohl|wirsing|mangold|rote.?bete|pastinake|"
+    r"tomato|cucumber|pepper|onion|broccoli|carrot|courgette|cabbage|cauliflower|spinach|"
+    r"lettuce|rocket|mushroom|beetroot|sweet.?potato|asparagus|kale|pumpkin|squash|fennel|"
+    r"leek|celery|pea\b|bean\b|corn\b|eggplant)\b",
+    re.IGNORECASE,
+)
+
+def _count_veggies(ingredients: list) -> int:
+    """Count distinct vegetable types in an ingredient list."""
+    found = set()
+    for ing in (ingredients or []):
+        for m in _VEGGIE_RE.finditer(str(ing)):
+            found.add(m.group().lower().rstrip("ns"))  # crude lemma
+    return len(found)
+
+# Fixed per-recipe reference values (one dinner out of ~3 meals/day)
+_REF = {"fibre": 8.0, "protein": 20.0, "sat_fat": 7.0, "veggies": 3}
+
+def _chip_color(val: float, ref: float, invert: bool = False) -> str:
+    """
+    Traffic-light colour for a nutrient chip.
+    invert=False (good nutrient — more is better): green ≥ ref, amber ≥ 50%, red < 50%
+    invert=True  (bad nutrient — less is better):  green ≤ ref, amber ≤ 2× ref, red > 2× ref
+    Red reserved for >2× the recommended — matches user preference.
+    """
+    if ref <= 0:
+        return "#888"
+    ratio = val / ref
+    if not invert:
+        if ratio >= 1.0: return "#2e7d32"
+        if ratio >= 0.5: return "#e08000"
+        return "#cc3333"
+    else:
+        if ratio <= 1.0: return "#2e7d32"
+        if ratio <= 2.0: return "#e08000"
+        return "#cc3333"
+
+def _nut_chip(label: str, val: float, ref: float, invert: bool = False) -> str:
+    c = _chip_color(val, ref, invert)
+    return f"<span class='nut' style='background:{c};'>{label}</span>"
+
+
 # ── Card renderer ─────────────────────────────────────────────────────────────
 def render_card(row, rank: int, color: str, dimmed: bool = False):
     score    = row.get("score", 0)
@@ -171,10 +220,11 @@ def render_card(row, rank: int, color: str, dimmed: bool = False):
     subtitle = row.get("subtitle") or ""
     img_url  = row.get("image_url") or ""
     kcal     = row.get("calories") or "–"
-    prot     = row.get("protein") or "–"
-    fibre    = row.get("fibre") or "–"
-    salt     = row.get("salt") or "–"
+    prot     = float(row.get("protein") or 0)
+    fibre    = float(row.get("fibre") or 0)
+    sfat     = float(row.get("sat_fat") or 0)
     ings     = row.get("ingredients") or []
+    veggies  = _count_veggies(ings)
     diff     = row.get("difficulty") or ""
     t_time   = row.get("total_time") or ""
 
@@ -204,10 +254,11 @@ def render_card(row, rank: int, color: str, dimmed: bool = False):
           <span class="score-badge" style="background:{color};flex-shrink:0;">{score}/100</span>
         </div>
         <div class="nutrient-row">
-          <span class="nut">🔥 {kcal} kcal</span>
-          <span class="nut">💪 {prot}g prot</span>
-          <span class="nut">🌾 {fibre}g fibre</span>
-          <span class="nut">🧂 {salt}g salt</span>
+          <span class="nut nut-neutral">🔥 {kcal:.0f} kcal</span>
+          {_nut_chip(f"💪 {prot:.0f}g prot", prot, _REF["protein"])}
+          {_nut_chip(f"🌾 {fibre:.1f}g fibre", fibre, _REF["fibre"])}
+          {_nut_chip(f"🧈 {sfat:.1f}g sat.fat", sfat, _REF["sat_fat"], invert=True)}
+          {_nut_chip(f"🥦 {veggies} veggies", veggies, _REF["veggies"])}
         </div>
         {"<div class='ing'>" + ing_text + "</div>" if ing_text else ""}
         {"<div style='font-size:11px;color:#aaa;margin-top:5px;'>" + " · ".join(meta_bits) + "</div>" if meta_bits else ""}
@@ -228,57 +279,53 @@ def group_summary(group: pd.DataFrame) -> str:
 
 def weekly_score_card(group: pd.DataFrame, diet_key: str, weights: dict, color: str):
     """Render a weekly compliance summary for the selected 5 recipes."""
-    from config import DIET_WEIGHTS
-    avg_score = group["score"].fillna(0).astype(float).mean()
-
-    # Nutrient averages
-    fibre_avg  = group["fibre"].fillna(0).astype(float).mean()
+    avg_score  = group["score"].fillna(0).astype(float).mean()
     kcal_avg   = group["calories"].fillna(0).astype(float).mean()
+    fibre_avg  = group["fibre"].fillna(0).astype(float).mean()
+    prot_avg   = group["protein"].fillna(0).astype(float).mean()
     sfat_avg   = group["sat_fat"].fillna(0).astype(float).mean()
-    salt_avg   = group["salt"].fillna(0).astype(float).mean()
-    sugar_avg  = group["sugars"].fillna(0).astype(float).mean()
+    veggie_avg = group.apply(lambda r: _count_veggies(r.get("ingredients") or []), axis=1).mean()
 
-    # Targets from active weights
-    fibre_tgt  = float(weights.get("fibre_target_g", 10))
-    salt_max   = float(weights.get("salt_max_g", 2.0))
+    # Targets — diet-specific where available, else sensible defaults
+    fibre_tgt  = float(weights.get("fibre_target_g", 8.0))
+    prot_tgt   = 20.0  # g per recipe
     sfat_max_p = float(weights.get("sfat_max_pct", 0.10))
-    sfat_max_g = (sfat_max_p * kcal_avg / 9) if kcal_avg > 0 else 5.0
-    sugar_max_p = float(weights.get("sugar_max_pct", 0.10))
-    sugar_max_g = (sugar_max_p * kcal_avg / 4) if kcal_avg > 0 else 15.0
+    sfat_max_g = (sfat_max_p * kcal_avg / 9) if kcal_avg > 0 else 7.0
+    veggie_tgt = 3.0
 
-    def pct_bar(val, target, invert=False):
-        pct = min(val / target, 1.0) if target > 0 else 0
-        score_pct = (1 - pct) if invert else pct
-        fill_color = color if score_pct >= 0.6 else ("#e08000" if score_pct >= 0.35 else "#cc3333")
-        bar_pct = int(pct * 100)
+    def _bar(val, ref, invert=False):
+        """Progress bar coloured by the same traffic-light logic as chip colours."""
+        fill = _chip_color(val, ref, invert)
+        # Bar width: for good nutrients show progress to target; for bad show consumption vs 2× max
+        if not invert:
+            bar_pct = min(int(val / ref * 100), 100) if ref > 0 else 0
+        else:
+            bar_pct = min(int(val / (ref * 2) * 100), 100) if ref > 0 else 0
         return (
-            f"<div style='background:#eee;border-radius:4px;height:8px;width:100%;margin-top:3px;'>"
-            f"<div style='background:{fill_color};width:{bar_pct}%;height:8px;border-radius:4px;'></div></div>"
+            f"<div style='background:#e0e0e0;border-radius:4px;height:8px;width:100%;margin-top:4px;'>"
+            f"<div style='background:{fill};width:{bar_pct}%;height:8px;border-radius:4px;'></div></div>"
         )
 
     st.markdown(
         f"<div style='background:#f8f8f8;border:1.5px solid {color};border-radius:10px;"
-        f"padding:14px 18px;margin-top:14px;'>"
-        f"<div style='display:flex;align-items:center;gap:16px;margin-bottom:10px;'>"
+        f"padding:14px 18px;margin-bottom:14px;'>"
+        f"<div style='display:flex;align-items:center;gap:16px;margin-bottom:12px;'>"
         f"<div style='background:{color};color:#fff;border-radius:50%;width:56px;height:56px;"
         f"display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;flex-shrink:0;'>"
         f"{avg_score:.0f}</div>"
         f"<div><div style='font-size:15px;font-weight:700;'>Weekly diet score</div>"
-        f"<div style='font-size:12px;color:#666;'>Average score if you cook these 5 recipes · out of 100</div></div>"
+        f"<div style='font-size:12px;color:#666;'>Average across these 5 recipes · "
+        f"🟢 on target &nbsp;🟡 below &nbsp;🔴 >2× limit</div></div>"
         f"</div>"
-        f"<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:10px;font-size:12px;'>"
-        # Fibre
-        f"<div><b>🌾 Fibre</b><br>{fibre_avg:.1f}g / {fibre_tgt:.0f}g target"
-        f"{pct_bar(fibre_avg, fibre_tgt)}</div>"
-        # Salt
-        f"<div><b>🧂 Salt</b><br>{salt_avg:.2f}g / {salt_max:.1f}g max"
-        f"{pct_bar(salt_avg, salt_max, invert=True)}</div>"
-        # Sat fat
-        f"<div><b>🧈 Sat. fat</b><br>{sfat_avg:.1f}g / {sfat_max_g:.1f}g max"
-        f"{pct_bar(sfat_avg, sfat_max_g, invert=True)}</div>"
-        # Sugars
-        f"<div><b>🍬 Sugars</b><br>{sugar_avg:.1f}g / {sugar_max_g:.1f}g max"
-        f"{pct_bar(sugar_avg, sugar_max_g, invert=True)}</div>"
+        f"<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:12px;font-size:12px;'>"
+        f"<div><b>💪 Protein</b><br><span style='color:{_chip_color(prot_avg,prot_tgt)};font-weight:700;'>{prot_avg:.1f}g</span> / {prot_tgt:.0f}g"
+        f"{_bar(prot_avg, prot_tgt)}</div>"
+        f"<div><b>🌾 Fibre</b><br><span style='color:{_chip_color(fibre_avg,fibre_tgt)};font-weight:700;'>{fibre_avg:.1f}g</span> / {fibre_tgt:.0f}g"
+        f"{_bar(fibre_avg, fibre_tgt)}</div>"
+        f"<div><b>🧈 Sat. fat</b><br><span style='color:{_chip_color(sfat_avg,sfat_max_g,True)};font-weight:700;'>{sfat_avg:.1f}g</span> / {sfat_max_g:.1f}g max"
+        f"{_bar(sfat_avg, sfat_max_g, invert=True)}</div>"
+        f"<div><b>🥦 Veggies</b><br><span style='color:{_chip_color(veggie_avg,veggie_tgt)};font-weight:700;'>{veggie_avg:.1f}</span> / {veggie_tgt:.0f} types"
+        f"{_bar(veggie_avg, veggie_tgt)}</div>"
         f"</div></div>",
         unsafe_allow_html=True,
     )
@@ -286,6 +333,8 @@ def weekly_score_card(group: pd.DataFrame, diet_key: str, weights: dict, color: 
 
 def render_row(group: pd.DataFrame, start_rank: int, color: str, dimmed: bool = False,
                diet_key: str = "", weights: dict = None, show_weekly_score: bool = False):
+    if show_weekly_score and diet_key and weights is not None:
+        weekly_score_card(group, diet_key, weights, color)
     cols = st.columns(5)
     for i, (_, recipe) in enumerate(group.iterrows()):
         with cols[i]:
@@ -294,8 +343,6 @@ def render_row(group: pd.DataFrame, start_rank: int, color: str, dimmed: bool = 
         f"<div style='font-size:12px;color:#888;margin:6px 0 0 4px;'>{group_summary(group)}</div>",
         unsafe_allow_html=True,
     )
-    if show_weekly_score and diet_key and weights is not None:
-        weekly_score_card(group, diet_key, weights, color)
 
 
 # ── Top 5 ─────────────────────────────────────────────────────────────────────
