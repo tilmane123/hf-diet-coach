@@ -180,6 +180,19 @@ _VEGGIES = [
     "cabbage", "cauliflower", "lettuce", "rocket", "mushroom", "beetroot", "asparagus",
     "kale", "pumpkin", "squash", "fennel", "leek", "celery", "eggplant", "aubergine",
     "chickpea", "lentil", "sweet potato", "bok choy",
+    # Dutch
+    "komkommer", "spinazie", "wortel", "peen", "bloemkool", "rode kool", "spruitje",
+    "sla", "andijvie", "prei", "venkel", "pompoen", "asperge", "erwt", "boon",
+    "selderij", "rode biet", "zoete aardappel", "snijboon", "peultje",
+    "uien", "rode ui", "witte ui", "sjalot", "lente-ui", "lenteui",
+    # French
+    "concombre", "épinard", "carotte", "chou-fleur", "brocoli", "courgette",
+    "haricot", "poireau", "fenouil", "courge", "asperge", "laitue", "roquette",
+    "champignon", "betterave", "potiron", "pois chiche", "lentille",
+    # Swedish / Danish / Norwegian
+    "gurka", "spenat", "morot", "blomkål", "brysselkål", "sallad", "purjolök",
+    "fänkål", "pumpa", "sparris", "ärta", "böna", "selleri", "rödkål",
+    "agurk", "spinat", "gulerod", "blomkål", "rosenkål",
 ]
 
 def _count_veggies(ingredients: list) -> int:
