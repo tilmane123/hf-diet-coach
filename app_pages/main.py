@@ -39,130 +39,166 @@ HF_LEAF_BG    = "#F1F8E5"   # pale leaf wash
 
 st.markdown(f"""
 <style>
-  /* ── Fresh green base ─────────────────────────────────────────────── */
-  .stApp {{
-    background:
-      radial-gradient(900px 420px at 8% -8%, rgba(145,193,30,.16), transparent 60%),
-      radial-gradient(760px 380px at 105% 0%, rgba(46,125,50,.10), transparent 55%),
-      #FCFEF8;
-  }}
-  section[data-testid="stSidebar"] {{
-    background: linear-gradient(180deg, {HF_LEAF_BG} 0%, #FFFFFF 55%);
-    border-right: 1px solid rgba(145,193,30,.35);
-  }}
-  h1, h2, h3, h4 {{ color: {HF_GREEN_DEEP}; letter-spacing:-.2px; }}
-
-  /* ── Brand header ─────────────────────────────────────────────────── */
-  .hf-header {{
-    display:flex; align-items:center; gap:16px;
-    background: linear-gradient(120deg, {HF_GREEN} 0%, #7CB518 45%, #4E8C0A 100%);
-    border-radius:16px; padding:16px 22px; margin:0 0 16px;
-    box-shadow:0 6px 20px rgba(92,138,15,.28);
-    position:relative; overflow:hidden;
-  }}
-  .hf-header::after {{
-    content:"🥬"; position:absolute; right:-10px; bottom:-26px;
-    font-size:104px; opacity:.16; transform:rotate(-12deg);
-  }}
-  /* White chip keeps the lime + black wordmark legible on the green header */
-  .hf-header .hf-logo {{
-    background:#fff; border-radius:10px; padding:9px 14px; flex-shrink:0;
-    box-shadow:0 2px 8px rgba(0,0,0,.14); line-height:0;
-  }}
-  .hf-header .hf-logo img {{ height:30px; display:block; }}
-  .hf-header .hf-divider {{ width:1px; height:34px; background:rgba(255,255,255,.45); }}
-  .hf-header .hf-title {{ color:#fff; font-size:21px; font-weight:800; line-height:1.15; }}
-  .hf-header .hf-sub {{ color:rgba(255,255,255,.92); font-size:13px; margin-top:2px; }}
-
-  /* ── Recipe cards ─────────────────────────────────────────────────── */
-  .recipe-card {{
-    background:#fff; border-radius:14px; overflow:hidden; height:100%;
-    border:1px solid rgba(145,193,30,.30);
-    box-shadow:0 3px 14px rgba(47,79,11,.09);
-    transition:transform .16s ease, box-shadow .16s ease;
-  }}
-  .recipe-card:hover {{ transform:translateY(-3px); box-shadow:0 10px 26px rgba(47,79,11,.17); }}
+  /* ── Recipe cards ── */
+  .recipe-card {{ background:#fff; border-radius:16px; box-shadow:0 4px 16px rgba(0,0,0,.08); overflow:hidden; height:100%; transition:box-shadow .2s; }}
+  .recipe-card:hover {{ box-shadow:0 8px 24px rgba(0,0,0,.13); }}
   .card-img {{ width:100%; height:175px; object-fit:cover; }}
-  .card-img-placeholder {{
-    height:175px; background:linear-gradient(135deg,{HF_LEAF_BG},#DCEFC0);
-    display:flex; align-items:center; justify-content:center; font-size:48px;
-  }}
+  .card-img-placeholder {{ height:175px; background:#f0f0f0; display:flex; align-items:center; justify-content:center; font-size:48px; }}
   .card-body {{ padding:12px 14px 14px; }}
-  .card-rank {{
-    font-size:11px; font-weight:700; color:{HF_GREEN_DARK}; text-transform:uppercase;
-    letter-spacing:.6px; margin-bottom:3px;
-  }}
-  .card-title {{ font-size:14px; font-weight:700; line-height:1.35; margin:0 0 2px; color:{HF_GREEN_DEEP}; }}
-  .card-sub {{ font-size:12px; color:#7A8A6A; margin:0 0 8px; }}
-  .score-badge {{
-    display:inline-block; border-radius:20px; padding:3px 11px;
-    font-size:13px; font-weight:700; color:#fff;
-  }}
+  .card-rank {{ font-size:11px; font-weight:600; color:#bbb; text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px; }}
+  .card-title {{ font-size:14px; font-weight:700; line-height:1.35; margin:0 0 2px; }}
+  .card-sub {{ font-size:12px; color:#888; margin:0 0 8px; }}
+  .score-badge {{ display:inline-block; border-radius:20px; padding:3px 11px; font-size:13px; font-weight:700; color:#fff; }}
   .nutrient-row {{ display:flex; gap:5px; flex-wrap:wrap; margin-top:8px; }}
-  .nut {{ border-radius:6px; padding:2px 7px; font-size:11px; color:#fff; font-weight:600; }}
-  .nut-neutral {{ background:{HF_LEAF_BG}; color:#4A5A3A; font-weight:500; }}
-  .ing {{ font-size:11px; color:#6B7A5C; margin-top:7px; line-height:1.55; }}
-  .section-header {{
-    font-size:18px; font-weight:700; margin:24px 0 12px; padding:9px 16px;
-    border-radius:10px; color:#fff; box-shadow:0 3px 10px rgba(47,79,11,.16);
-  }}
-  .runner-up-card {{ opacity:0.9; }}
+  .nut {{ border-radius:8px; padding:3px 8px; font-size:11px; color:#fff; font-weight:600; }}
+  .nut-neutral {{ background:#f0f0f0; color:#555; font-weight:400; }}
+  .ing {{ font-size:11px; color:#888; margin-top:7px; line-height:1.55; }}
+  .section-header {{ font-size:17px; font-weight:700; margin:24px 0 10px; padding:10px 18px; border-radius:12px; color:#fff; }}
+  .runner-up-card {{ opacity:0.85; }}
 
-  /* ── Buttons ──────────────────────────────────────────────────────── */
-  .stButton > button {{ border-radius:9px; font-weight:600; }}
-  .stButton > button[kind="primary"] {{
-    background:linear-gradient(120deg,{HF_GREEN},#6FA512); border:none;
-    box-shadow:0 3px 10px rgba(92,138,15,.32);
-  }}
-  .stButton > button[kind="primary"]:hover {{ filter:brightness(1.06); }}
+  /* ── Selector panels ── */
+  .sel-panel {{ background:#fff; border-radius:20px; box-shadow:0 4px 18px rgba(0,0,0,.07);
+               padding:20px 18px 16px; text-align:center; margin-bottom:4px; }}
+  .sel-icon  {{ font-size:36px; margin-bottom:6px; }}
+  .sel-label {{ font-size:12px; font-weight:700; letter-spacing:.6px; text-transform:uppercase;
+               color:#aaa; margin-bottom:8px; }}
+
+  /* ── Diet result header ── */
+  .diet-header {{ border-radius:20px; padding:22px 28px; margin-bottom:6px;
+                 box-shadow:0 6px 24px rgba(0,0,0,.12); }}
+  .diet-header-emoji {{ font-size:40px; margin-bottom:8px; }}
+  .diet-header-title {{ font-size:22px; font-weight:800; color:#fff; margin:0 0 6px; }}
+  .diet-header-desc  {{ font-size:14px; color:rgba(255,255,255,.85); line-height:1.5; margin:0; }}
+  .diet-header-meta  {{ font-size:12px; color:rgba(255,255,255,.65); margin-top:10px; }}
+
+  /* ── Avoid chips ── */
+  .avoid-bar {{ background:#fff8f0; border:1.5px solid #ffe0b2; border-radius:14px;
+               padding:14px 18px; margin:12px 0 16px; }}
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown(f"""
-<div class="hf-header">
-  <div class="hf-logo"><img src="{HF_LOGO}" alt="HelloFresh"></div>
-  <div class="hf-divider"></div>
-  <div>
-    <div class="hf-title">Diet Coach 🥗</div>
-    <div class="hf-sub">The freshest picks from this week's menu, matched to how you want to eat</div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
+# ── Market flags ──────────────────────────────────────────────────────────────
+_MARKET_FLAGS = {
+    "Germany":            "🇩🇪  Germany",
+    "Netherlands":        "🇳🇱  Netherlands",
+    "United Kingdom":     "🇬🇧  United Kingdom",
+    "France":             "🇫🇷  France",
+    "Scandinavia (DKSE)": "🇸🇪  Scandinavia",
+}
+_FLAG_TO_MARKET = {v: k for k, v in _MARKET_FLAGS.items()}
 
-# ── Sidebar ───────────────────────────────────────────────────────────────────
-with st.sidebar:
-    if HF_LOGO_FILE.exists():
-        st.image(str(HF_LOGO_FILE), width=170)
-    st.title("HF Diet Coach")
-    st.caption("Best-fit HelloFresh recipes for any diet. · v0.28")
-    st.divider()
+# ── Avoidance options ─────────────────────────────────────────────────────────
+_AVOID_OPTIONS = {
+    "🥜 Peanuts":        "peanut",
+    "🥛 Dairy":          "dairy",
+    "🌾 Gluten":         "gluten",
+    "🐷 Pork":           "pork",
+    "🐄 Beef":           "beef",
+    "🐟 Fish & Seafood": "fish",
+}
 
-    market_label = st.selectbox("🌍 Market", list(MARKETS.keys()))
+def _apply_avoidances(df: pd.DataFrame, avoid_keys: list) -> pd.DataFrame:
+    if not avoid_keys or df.empty:
+        return df
+    mask = pd.Series(True, index=df.index)
+    ing_text = df["ingredients"].apply(
+        lambda x: " ".join(str(i) for i in (x or [])).lower()
+    )
+    title_text = df["title"].fillna("").str.lower()
+    combined = ing_text + " " + title_text
+    for key in avoid_keys:
+        if key == "peanut":
+            mask &= ~combined.str.contains(r"erdnuss|peanut", regex=True)
+        elif key == "dairy":
+            mask &= ~combined.str.contains(
+                r"milch|käse|butter|sahne|joghurt|quark|feta|mozzarella|parmesan|"
+                r"milk|cheese|cream|yogurt|cheddar|ricotta|halloumi", regex=True)
+        elif key == "gluten":
+            mask &= ~combined.str.contains(
+                r"mehl|weizen|dinkel|pasta|nudel|spaghetti|tagliatelle|penne|fusilli|"
+                r"brot|brötchen|flour|wheat|spelt|couscous|bulgur|bread|noodle", regex=True)
+        elif key == "pork":
+            mask &= ~combined.str.contains(
+                r"schwein|speck|bacon|schinken|chorizo|salami|pancetta|pork|"
+                r"pulled\s*pork|salsiccia|mortadella|coppa", regex=True)
+        elif key == "beef":
+            mask &= ~combined.str.contains(
+                r"rind\w*|hack\w*|beef|roastbeef|hüftsteak|steak|burger|"
+                r"bolognese|tartar|brisket", regex=True)
+        elif key == "fish":
+            mask &= ~combined.str.contains(
+                r"lachs|salmon|kabeljau|cod|thunfisch|tuna|garnele|shrimp|prawn|"
+                r"forelle|trout|dorade|pangasius|hake|seabass|fisch\b|fish\b|"
+                r"muschel|mussel|squid|calamari|crevette", regex=True)
+    return df[mask].reset_index(drop=True)
+
+
+# ── Central selector (vending-machine style) ──────────────────────────────────
+st.markdown(
+    "<div style='text-align:center;padding:28px 0 8px;'>"
+    "<span style='font-size:32px;font-weight:800;letter-spacing:-1px;'>🥗 HF Diet Coach</span><br>"
+    "<span style='color:#aaa;font-size:14px;'>Find the best HelloFresh recipes for any diet · v0.29</span>"
+    "</div>",
+    unsafe_allow_html=True,
+)
+
+c1, c2, c3 = st.columns(3)
+
+with c1:
+    st.markdown("<div class='sel-panel'><div class='sel-icon'>🌍</div>"
+                "<div class='sel-label'>Country</div></div>", unsafe_allow_html=True)
+    flag_label = st.selectbox("country", list(_MARKET_FLAGS.values()),
+                               label_visibility="collapsed")
+    market_label = _FLAG_TO_MARKET[flag_label]
     mkt = MARKETS[market_label]
 
-    diet_label = st.selectbox("🥗 Diet Framework", list(DIETS.keys()), key="diet_select")
-    diet_key = DIETS[diet_label]
-
-    with st.spinner(f"Loading weeks for {market_label}… (may take ~30s on first load)"):
+with c2:
+    st.markdown("<div class='sel-panel'><div class='sel-icon'>📅</div>"
+                "<div class='sel-label'>Week</div></div>", unsafe_allow_html=True)
+    with st.spinner("Loading weeks…"):
         try:
             weeks = get_available_weeks(mkt["market"], mkt["region_code"])
         except Exception as e:
             st.error(f"Could not load weeks: {e}")
             st.stop()
-
     if not weeks:
-        st.warning("No weeks found for this market.")
+        st.warning("No weeks found.")
         st.stop()
-
-    week_idx = st.selectbox(
-        "📅 Week",
-        range(len(weeks)),
-        format_func=lambda i: weeks[i]["label"],
-    )
+    week_idx = st.selectbox("week", range(len(weeks)),
+                             format_func=lambda i: weeks[i]["label"],
+                             label_visibility="collapsed")
     selected_week = weeks[week_idx]
 
-    run_btn = st.button("🔍 Find best recipes", use_container_width=True, type="primary")
+with c3:
+    st.markdown("<div class='sel-panel'><div class='sel-icon'>🥗</div>"
+                "<div class='sel-label'>Diet Framework</div></div>", unsafe_allow_html=True)
+    diet_label = st.selectbox("diet", list(DIETS.keys()),
+                               label_visibility="collapsed")
+    diet_key = DIETS[diet_label]
 
+# ── Avoid selector ────────────────────────────────────────────────────────────
+st.markdown("<div class='avoid-bar'>", unsafe_allow_html=True)
+avoid_labels = st.multiselect(
+    "🚫  Anything to avoid?",
+    list(_AVOID_OPTIONS.keys()),
+    placeholder="Select ingredients to exclude…",
+)
+avoid_keys = [_AVOID_OPTIONS[l] for l in avoid_labels]
+st.markdown("</div>", unsafe_allow_html=True)
+
+# ── Find button ───────────────────────────────────────────────────────────────
+_, btn_col, _ = st.columns([1, 2, 1])
+with btn_col:
+    run_btn = st.button("🔍  Find best recipes", use_container_width=True, type="primary")
+
+st.divider()
+
+# ── Sidebar — scoring params only ─────────────────────────────────────────────
+with st.sidebar:
+    if HF_LOGO_FILE.exists():
+        st.image(str(HF_LOGO_FILE), width=170)
+    st.title("HF Diet Coach")
+    st.caption("Scoring parameters · v0.29")
     st.divider()
 
     # ── Scoring weights editor ──────────────────────────────────────────────
@@ -208,218 +244,202 @@ with st.sidebar:
 # ── Main ──────────────────────────────────────────────────────────────────────
 color = DIET_COLORS[diet_key]
 
+# ── Session state for search + questionnaire ─────────────────────────────────
+ss = st.session_state
+ss.setdefault(“ob_step”, 1)          # 1, 2, 3 or “done”
+ss.setdefault(“ob_goals”, [])
+ss.setdefault(“ob_goals_ranked”, [])
+ss.setdefault(“ob_prefs”, [])
+
+if run_btn:
+    ss[“run_search”] = True
+    if ss.get(“ob_step”) == “done”:
+        ss[“ob_step”] = 1
+        ss[“ob_goals”] = []
+        ss[“ob_goals_ranked”] = []
+        ss[“ob_prefs”] = []
+
+if not ss.get(“run_search”):
+    st.stop()
+
 # ── Pre-section questionnaire ─────────────────────────────────────────────────
-# Three steps, gating the results: goals → priority → nutrition preferences.
 GOAL_LABEL = dict(HEALTH_GOALS)
 PREF_LABEL = dict(NUTRITION_PREFS)
 KEY_TO_DIET_LABEL = {v: k for k, v in DIETS.items()}
 
-ss = st.session_state
-ss.setdefault("ob_step", 1)          # 1, 2, 3 or "done"
-ss.setdefault("ob_goals", [])        # selected goal keys
-ss.setdefault("ob_goals_ranked", []) # goal keys in priority order
-ss.setdefault("ob_prefs", [])        # selected preference keys
-
 
 def _restart_onboarding():
-    ss["ob_step"] = 1
-    ss["ob_goals_ranked"] = []
+    ss[“ob_step”] = 1
+    ss[“ob_goals_ranked”] = []
 
 
 def _multi_select_block(options, chosen, max_n, key_prefix):
-    """Checkbox list capped at max_n. Returns the newly selected keys."""
     picked = []
     for k, label in options:
         at_cap = len(chosen) >= max_n and k not in chosen
-        if st.checkbox(label, value=(k in chosen), key=f"{key_prefix}_{k}",
+        if st.checkbox(label, value=(k in chosen), key=f”{key_prefix}_{k}”,
                        disabled=at_cap):
             picked.append(k)
     return picked
 
 
-if ss["ob_step"] != "done":
-    st.markdown("#### Let's personalise your week")
-    st.caption("Three quick questions. Your answers re-rank the menu — "
-               "they don't replace the diet framework.")
+if ss[“ob_step”] != “done”:
+    st.markdown(“#### Let's personalise your week”)
+    st.caption(“Three quick questions — your answers re-rank the menu without overriding the diet framework.”)
 
-    # ── Q1: health goals ──────────────────────────────────────────────────────
-    if ss["ob_step"] == 1:
-        st.markdown(f"**1 · What is your health goal?**  \n"
-                    f"<span style='color:#777;font-size:13px;'>please select max "
-                    f"{MAX_GOALS}</span>", unsafe_allow_html=True)
-        picked = _multi_select_block(HEALTH_GOALS, ss["ob_goals"], MAX_GOALS, "goal")
-        ss["ob_goals"] = picked[:MAX_GOALS]
-
-        st.caption(f"{len(ss['ob_goals'])} of {MAX_GOALS} selected")
+    if ss[“ob_step”] == 1:
+        st.markdown(f”**1 · What is your health goal?**  \n”
+                    f”<span style='color:#777;font-size:13px;'>Select up to {MAX_GOALS}</span>”,
+                    unsafe_allow_html=True)
+        picked = _multi_select_block(HEALTH_GOALS, ss[“ob_goals”], MAX_GOALS, “goal”)
+        ss[“ob_goals”] = picked[:MAX_GOALS]
+        st.caption(f”{len(ss['ob_goals'])} of {MAX_GOALS} selected”)
         c1, c2 = st.columns([1, 4])
-        if c1.button("Continue →", type="primary", disabled=not ss["ob_goals"]):
-            # One goal needs no ranking — skip straight past the priority step
-            if len(ss["ob_goals"]) == 1:
-                ss["ob_goals_ranked"] = list(ss["ob_goals"])
-                ss["ob_step"] = 3
+        if c1.button(“Continue →”, type=”primary”, disabled=not ss[“ob_goals”]):
+            if len(ss[“ob_goals”]) == 1:
+                ss[“ob_goals_ranked”] = list(ss[“ob_goals”])
+                ss[“ob_step”] = 3
             else:
-                ss["ob_step"] = 2
+                ss[“ob_step”] = 2
             st.rerun()
-        if not ss["ob_goals"]:
-            c2.caption("Pick at least one goal to continue.")
+        if not ss[“ob_goals”]:
+            c2.caption(“Pick at least one goal to continue.”)
         st.stop()
 
-    # ── Q2: prioritise the goals ──────────────────────────────────────────────
-    if ss["ob_step"] == 2:
-        n = len(ss["ob_goals"])
-        shares = [f"{w:.0%}" for w in rank_weights(n)]
-        st.markdown("**2 · Which matters most?**  \n"
-                    "<span style='color:#777;font-size:13px;'>rank your goals — "
-                    "higher priority counts for more</span>", unsafe_allow_html=True)
-
-        remaining = [GOAL_LABEL[k] for k in ss["ob_goals"]]
+    if ss[“ob_step”] == 2:
+        n = len(ss[“ob_goals”])
+        shares = [f”{w:.0%}” for w in rank_weights(n)]
+        st.markdown(“**2 · Which matters most?**  \n”
+                    “<span style='color:#777;font-size:13px;'>Rank your goals — higher = more influence</span>”,
+                    unsafe_allow_html=True)
+        remaining = [GOAL_LABEL[k] for k in ss[“ob_goals”]]
         order, taken = [], []
         for i in range(n):
             opts = [lbl for lbl in remaining if lbl not in taken]
-            choice = st.selectbox(
-                f"Priority {i + 1} — counts for {shares[i]}",
-                opts, key=f"rank_{i}",
-            )
+            choice = st.selectbox(f”Priority {i + 1} — counts for {shares[i]}”, opts, key=f”rank_{i}”)
             taken.append(choice)
             order.append(choice)
-
         dupes = len(set(order)) != len(order)
         c1, c2 = st.columns([1, 4])
-        if c1.button("Continue →", type="primary", disabled=dupes):
+        if c1.button(“Continue →”, type=”primary”, disabled=dupes):
             label_to_key = {v: k for k, v in GOAL_LABEL.items()}
-            ss["ob_goals_ranked"] = [label_to_key[lbl] for lbl in order]
-            ss["ob_step"] = 3
+            ss[“ob_goals_ranked”] = [label_to_key[lbl] for lbl in order]
+            ss[“ob_step”] = 3
             st.rerun()
-        if c2.button("← Back"):
-            ss["ob_step"] = 1
+        if c2.button(“← Back”):
+            ss[“ob_step”] = 1
             st.rerun()
         st.stop()
 
-    # ── Q3: nutrition preferences ─────────────────────────────────────────────
-    if ss["ob_step"] == 3:
-        st.markdown(f"**3 · Do you have nutrition preferences?**  \n"
-                    f"<span style='color:#777;font-size:13px;'>please select max "
-                    f"{MAX_PREFS}</span>", unsafe_allow_html=True)
-        picked = _multi_select_block(NUTRITION_PREFS, ss["ob_prefs"], MAX_PREFS, "pref")
-        ss["ob_prefs"] = picked[:MAX_PREFS]
+    if ss[“ob_step”] == 3:
+        st.markdown(f”**3 · Any nutrition preferences?**  \n”
+                    f”<span style='color:#777;font-size:13px;'>Select up to {MAX_PREFS} · optional</span>”,
+                    unsafe_allow_html=True)
+        picked = _multi_select_block(NUTRITION_PREFS, ss[“ob_prefs”], MAX_PREFS, “pref”)
+        ss[“ob_prefs”] = picked[:MAX_PREFS]
+        st.caption(f”{len(ss['ob_prefs'])} of {MAX_PREFS} selected · optional”)
 
-        st.caption(f"{len(ss['ob_prefs'])} of {MAX_PREFS} selected · optional")
         def _finish_onboarding():
-            """Callback: runs before the rerun, so writing diet_select is legal
-            here even though the sidebar widget already exists this run."""
-            ss["ob_step"] = "done"
-            # A #1 goal that mandates a framework switches to it automatically
-            _forced = forced_diet(ss["ob_goals_ranked"] or ss["ob_goals"])
+            ss[“ob_step”] = “done”
+            _forced = forced_diet(ss[“ob_goals_ranked”] or ss[“ob_goals”])
             if _forced:
-                ss["diet_select"] = KEY_TO_DIET_LABEL[_forced]
+                ss[“diet_select”] = KEY_TO_DIET_LABEL[_forced]
 
         c1, c2 = st.columns([1, 4])
-        c1.button("See my recipes →", type="primary", on_click=_finish_onboarding)
-        if c2.button("← Back"):
-            ss["ob_step"] = 2 if len(ss["ob_goals"]) > 1 else 1
+        c1.button(“See my recipes →”, type=”primary”, on_click=_finish_onboarding)
+        if c2.button(“← Back”):
+            ss[“ob_step”] = 2 if len(ss[“ob_goals”]) > 1 else 1
             st.rerun()
         st.stop()
 
 # ── Answer summary strip ──────────────────────────────────────────────────────
-goal_keys = ss["ob_goals_ranked"] or ss["ob_goals"]
-pref_keys = ss["ob_prefs"]
+goal_keys = ss[“ob_goals_ranked”] or ss[“ob_goals”]
+pref_keys = ss[“ob_prefs”]
 
 _shares = rank_weights(len(goal_keys))
-_goal_txt = " · ".join(
-    f"{i + 1}. {GOAL_LABEL[k]} ({_shares[i]:.0%})" for i, k in enumerate(goal_keys)
+_goal_txt = “ · “.join(
+    f”{i + 1}. {GOAL_LABEL[k]} ({_shares[i]:.0%})” for i, k in enumerate(goal_keys)
 )
-_pref_txt = ", ".join(PREF_LABEL[k] for k in pref_keys) or "none"
+_pref_txt = “, “.join(PREF_LABEL[k] for k in pref_keys) or “none”
 
 sc1, sc2 = st.columns([6, 1])
 with sc1:
     st.markdown(
-        f"<div style='background:{HF_LEAF_BG};border-left:4px solid {color};border-radius:8px;"
-        f"padding:9px 13px;font-size:13px;line-height:1.7;'>"
-        f"<b>🎯 Your goals</b> &nbsp;{_goal_txt}<br>"
-        f"<b>🍽️ Preferences</b> &nbsp;{_pref_txt}</div>",
+        f”<div style='background:#F8FFF0;border-left:4px solid {color};border-radius:8px;”
+        f”padding:9px 13px;font-size:13px;line-height:1.7;'>”
+        f”<b>🎯 Your goals</b> &nbsp;{_goal_txt}<br>”
+        f”<b>🍽️ Preferences</b> &nbsp;{_pref_txt}</div>”,
         unsafe_allow_html=True,
     )
 with sc2:
-    st.button("Change", on_click=_restart_onboarding, use_container_width=True)
+    st.button(“Change”, on_click=_restart_onboarding, use_container_width=True)
 
-# ── Best-match framework ──────────────────────────────────────────────────────
+# ── Best-match framework suggestion ──────────────────────────────────────────
 ranked = recommend_diets(goal_keys, pref_keys)
 if ranked:
     best_key, best_score = ranked[0]
-    best_label = KEY_TO_DIET_LABEL[best_key]
+    best_label = KEY_TO_DIET_LABEL.get(best_key, best_key)
     runner_key, runner_score = ranked[1]
-
     forced_key = forced_diet(goal_keys)
     if forced_key:
-        headline = "🎯 Framework set by your #1 goal"
-        why = f" — “{GOAL_LABEL[first_goal(goal_keys)]}”"
+        headline = “🎯 Framework set by your #1 goal”
+        why = f” — \”{GOAL_LABEL[first_goal(goal_keys)]}\””
     else:
-        headline = "🏆 Best match for your answers"
+        headline = “🏆 Best match for your answers”
         why_goal = recommendation_reason(best_key, goal_keys)
-        why = f" — driven mostly by “{GOAL_LABEL[why_goal]}”" if why_goal else ""
+        why = f” — driven by \”{GOAL_LABEL[why_goal]}\”” if why_goal else “”
     already = best_key == diet_key
 
     rc1, rc2 = st.columns([6, 1])
     with rc1:
         st.markdown(
-            f"<div style='background:linear-gradient(100deg,#FAFDF2,#EEF7DE);"
-            f"border-left:4px solid {DIET_COLORS[best_key]};"
-            f"border-radius:8px;padding:9px 13px;font-size:13px;line-height:1.7;'>"
-            f"<b>{headline}: {best_label}</b> "
-            f"<span style='color:#666;'>({best_score:.0%} fit){why}</span><br>"
-            f"<span style='color:#777;'>Runner-up: {KEY_TO_DIET_LABEL[runner_key]} "
-            f"({runner_score:.0%})"
-            + ("  ·  <b>you're viewing it now</b>" if already else "")
-            + "</span></div>",
+            f”<div style='background:linear-gradient(100deg,#FAFDF2,#EEF7DE);”
+            f”border-left:4px solid {DIET_COLORS.get(best_key, color)};”
+            f”border-radius:8px;padding:9px 13px;font-size:13px;line-height:1.7;'>”
+            f”<b>{headline}: {best_label}</b> “
+            f”<span style='color:#666;'>({best_score:.0%} fit){why}</span><br>”
+            f”<span style='color:#777;'>Runner-up: {KEY_TO_DIET_LABEL.get(runner_key, runner_key)} “
+            f”({runner_score:.0%})”
+            + (“  ·  <b>you're viewing it now</b>” if already else “”)
+            + “</span></div>”,
             unsafe_allow_html=True,
         )
     with rc2:
-        if not already:
+        if not already and best_key in KEY_TO_DIET_LABEL:
             def _apply_recommended(label=best_label):
-                ss["diet_select"] = label
-            st.button("Use it", on_click=_apply_recommended,
-                      type="primary", use_container_width=True)
+                ss[“diet_select”] = label
+            st.button(“Use it”, on_click=_apply_recommended, type=”primary”, use_container_width=True)
 
-    with st.expander("How every framework scored against your answers"):
+    with st.expander(“How every framework scored against your answers”):
         for k, sc in ranked:
             bar = int(round(sc * 100))
+            lbl = KEY_TO_DIET_LABEL.get(k, k)
             st.markdown(
-                f"<div style='display:flex;align-items:center;gap:8px;margin:3px 0;font-size:12px;'>"
-                f"<span style='width:190px;'>{KEY_TO_DIET_LABEL[k]}</span>"
-                f"<span style='flex:1;background:#eee;border-radius:4px;height:9px;'>"
-                f"<span style='display:block;width:{bar}%;background:{DIET_COLORS[k]};"
-                f"height:9px;border-radius:4px;'></span></span>"
-                f"<span style='width:38px;text-align:right;color:#666;'>{sc:.0%}</span></div>",
+                f”<div style='display:flex;align-items:center;gap:8px;margin:3px 0;font-size:12px;'>”
+                f”<span style='width:190px;'>{lbl}</span>”
+                f”<span style='flex:1;background:#eee;border-radius:4px;height:9px;'>”
+                f”<span style='display:block;width:{bar}%;background:{DIET_COLORS.get(k,'#aaa')};”
+                f”height:9px;border-radius:4px;'></span></span>”
+                f”<span style='width:38px;text-align:right;color:#666;'>{sc:.0%}</span></div>”,
                 unsafe_allow_html=True,
             )
-        st.caption("Fit combines your ranked goals (50/30/20) with your nutrition "
-                   "preferences, which count for half as much.")
+        st.caption(“Fit combines your ranked goals (50/30/20) with nutrition preferences (half weight).”)
 
-st.write("")
+st.write(“”)
 
-# ── Diet framework ────────────────────────────────────────────────────────────
+# ── Diet result header ────────────────────────────────────────────────────────
+_diet_emoji = diet_label.split()[0]
+_diet_name  = “ “.join(diet_label.split()[1:])
 st.markdown(
-    f"<div style='background:{color};color:#fff;border-radius:8px;padding:10px 16px;margin-bottom:4px;'>"
-    f"<b style='font-size:18px;'>{diet_label}</b><br>"
-    f"<span style='font-size:15px;'>{DIET_DESCRIPTIONS[diet_key]}</span></div>",
+    f"<div class='diet-header' style='background:linear-gradient(135deg,{color}ee,{color}99);'>"
+    f"<div class='diet-header-emoji'>{_diet_emoji}</div>"
+    f"<div class='diet-header-title'>{_diet_name}</div>"
+    f"<p class='diet-header-desc'>{DIET_DESCRIPTIONS[diet_key]}</p>"
+    f"<div class='diet-header-meta'>{flag_label} &nbsp;·&nbsp; {selected_week['label']}"
+    + (f" &nbsp;·&nbsp; 🚫 {', '.join(avoid_labels)}" if avoid_labels else "")
+    + "</div></div>",
     unsafe_allow_html=True,
 )
-st.caption(f"{market_label} · {selected_week['label']}")
-
-# ── Run ───────────────────────────────────────────────────────────────────────
-# Same action as the sidebar button, repeated here so the flow finishes where
-# the questions end. Latched in session state so results survive a rerun
-# (moving a slider no longer wipes them).
-bc1, bc2 = st.columns([2, 5])
-main_run = bc1.button("🔍 Find best recipes", type="primary",
-                      use_container_width=True, key="run_main")
-
-if run_btn or main_run:
-    ss["run_search"] = True
-
-if not ss.get("run_search"):
-    bc2.caption("👈 Click to score this week's menu against your answers.")
-    st.stop()
 
 # ── Fetch ─────────────────────────────────────────────────────────────────────
 with st.spinner(f"Fetching {market_label} menu for {selected_week['label']}…"):
@@ -442,13 +462,19 @@ if df.empty:
     st.warning("No recipes with nutritional data found for this market/week.")
     st.stop()
 
+# ── Apply avoidances ──────────────────────────────────────────────────────────
+if avoid_keys:
+    df = _apply_avoidances(df, avoid_keys)
+    if df.empty:
+        st.warning("No recipes remain after applying your avoidances. Try removing some filters.")
+        st.stop()
+
 # ── Rules from the #1 goal ────────────────────────────────────────────────────
 df, filter_note = apply_goal_filters(df, goal_keys)
 if filter_note:
     st.info(f"🥖 {filter_note}")
 if first_goal(goal_keys) in GOAL1_FIBRE_FIRST:
-    st.info("🌾 Your top goal puts **fibre first** — recipes are ranked by fibre "
-            "content ahead of the framework's own criteria.")
+    st.info("🌾 Your top goal puts **fibre first** — recipes are ranked by fibre content ahead of the framework's own criteria.")
 
 # ── Score & split ─────────────────────────────────────────────────────────────
 with st.spinner("Scoring recipes…"):
