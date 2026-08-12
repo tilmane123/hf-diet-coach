@@ -133,14 +133,58 @@ def _apply_avoidances(df: pd.DataFrame, avoid_keys: list) -> pd.DataFrame:
     return df[mask].reset_index(drop=True)
 
 
-# ── Central selector (vending-machine style) ──────────────────────────────────
+# ── App title ─────────────────────────────────────────────────────────────────
 st.markdown(
-    "<div style='text-align:center;padding:28px 0 8px;'>"
+    "<div style='text-align:center;padding:28px 0 12px;'>"
     "<span style='font-size:32px;font-weight:800;letter-spacing:-1px;'>🥗 HF Diet Coach</span><br>"
     "<span style='color:#aaa;font-size:14px;'>Find the best HelloFresh recipes for any diet · v0.29</span>"
     "</div>",
     unsafe_allow_html=True,
 )
+
+# ── Personalisation (optional, persistent) ────────────────────────────────────
+GOAL_LABEL     = dict(HEALTH_GOALS)
+PREF_LABEL     = dict(NUTRITION_PREFS)
+KEY_TO_DIET_LABEL  = {v: k for k, v in DIETS.items()}
+_LABEL_TO_GOAL = {v: k for k, v in GOAL_LABEL.items()}
+_LABEL_TO_PREF = {v: k for k, v in PREF_LABEL.items()}
+
+with st.expander("🎯 Personalise your results (optional)"):
+    st.caption("Set once — stays active when you switch country, week, or diet. Leave blank for pure diet-framework scoring.")
+    _g_col, _p_col = st.columns(2)
+    with _g_col:
+        _goal_labels = st.multiselect(
+            "Health goals (up to 3)",
+            options=[lbl for _, lbl in HEALTH_GOALS],
+            max_selections=MAX_GOALS,
+            placeholder="What matters to you?",
+            key="pers_goals",
+        )
+    with _p_col:
+        _pref_labels = st.multiselect(
+            "Nutrition preferences (up to 3)",
+            options=[lbl for _, lbl in NUTRITION_PREFS],
+            max_selections=MAX_PREFS,
+            placeholder="Any specific focus?",
+            key="pers_prefs",
+        )
+    _raw_goal_keys = [_LABEL_TO_GOAL[l] for l in _goal_labels]
+    if len(_raw_goal_keys) >= 2:
+        st.caption("Rank by priority — #1 counts most (50 %):")
+        _shares = [f"{w:.0%}" for w in rank_weights(len(_raw_goal_keys))]
+        _rank_cols = st.columns(len(_raw_goal_keys))
+        _ranked, _taken = [], []
+        for _i, (_col, _sh) in enumerate(zip(_rank_cols, _shares)):
+            _opts = [l for l in _goal_labels if l not in _taken]
+            _pick = _col.selectbox(f"#{_i+1} · {_sh}", _opts, key=f"pers_rank_{_i}")
+            _taken.append(_pick)
+            _ranked.append(_LABEL_TO_GOAL[_pick])
+        goal_keys = _ranked
+    else:
+        goal_keys = _raw_goal_keys
+    pref_keys = [_LABEL_TO_PREF[l] for l in _pref_labels]
+
+# ── Country / Week / Diet selector ───────────────────────────────────────────
 
 c1, c2, c3 = st.columns(3)
 
@@ -244,188 +288,8 @@ with st.sidebar:
 # ── Main ──────────────────────────────────────────────────────────────────────
 color = DIET_COLORS[diet_key]
 
-# ── Session state for search + questionnaire ─────────────────────────────────
-ss = st.session_state
-ss.setdefault("ob_step", 1)          # 1, 2, 3 or "done"
-ss.setdefault("ob_goals", [])
-ss.setdefault("ob_goals_ranked", [])
-ss.setdefault("ob_prefs", [])
-
-if run_btn:
-    ss["run_search"] = True
-    if ss.get("ob_step") == "done":
-        ss["ob_step"] = 1
-        ss["ob_goals"] = []
-        ss["ob_goals_ranked"] = []
-        ss["ob_prefs"] = []
-
-if not ss.get("run_search"):
+if not run_btn:
     st.stop()
-
-# ── Pre-section questionnaire ─────────────────────────────────────────────────
-GOAL_LABEL = dict(HEALTH_GOALS)
-PREF_LABEL = dict(NUTRITION_PREFS)
-KEY_TO_DIET_LABEL = {v: k for k, v in DIETS.items()}
-
-
-def _restart_onboarding():
-    ss["ob_step"] = 1
-    ss["ob_goals_ranked"] = []
-
-
-def _multi_select_block(options, chosen, max_n, key_prefix):
-    picked = []
-    for k, label in options:
-        at_cap = len(chosen) >= max_n and k not in chosen
-        if st.checkbox(label, value=(k in chosen), key=f"{key_prefix}_{k}",
-                       disabled=at_cap):
-            picked.append(k)
-    return picked
-
-
-if ss["ob_step"] != "done":
-    st.markdown("#### Let's personalise your week")
-    st.caption("Three quick questions — your answers re-rank the menu without overriding the diet framework.")
-
-    if ss["ob_step"] == 1:
-        st.markdown(f"**1 · What is your health goal?**  \n"
-                    f"<span style='color:#777;font-size:13px;'>Select up to {MAX_GOALS}</span>",
-                    unsafe_allow_html=True)
-        picked = _multi_select_block(HEALTH_GOALS, ss["ob_goals"], MAX_GOALS, "goal")
-        ss["ob_goals"] = picked[:MAX_GOALS]
-        st.caption(f"{len(ss['ob_goals'])} of {MAX_GOALS} selected")
-        c1, c2 = st.columns([1, 4])
-        if c1.button("Continue →", type="primary", disabled=not ss["ob_goals"]):
-            if len(ss["ob_goals"]) == 1:
-                ss["ob_goals_ranked"] = list(ss["ob_goals"])
-                ss["ob_step"] = 3
-            else:
-                ss["ob_step"] = 2
-            st.rerun()
-        if not ss["ob_goals"]:
-            c2.caption("Pick at least one goal to continue.")
-        st.stop()
-
-    if ss["ob_step"] == 2:
-        n = len(ss["ob_goals"])
-        shares = [f"{w:.0%}" for w in rank_weights(n)]
-        st.markdown("**2 · Which matters most?**  \n"
-                    "<span style='color:#777;font-size:13px;'>Rank your goals — higher = more influence</span>",
-                    unsafe_allow_html=True)
-        remaining = [GOAL_LABEL[k] for k in ss["ob_goals"]]
-        order, taken = [], []
-        for i in range(n):
-            opts = [lbl for lbl in remaining if lbl not in taken]
-            choice = st.selectbox(f"Priority {i + 1} — counts for {shares[i]}", opts, key=f"rank_{i}")
-            taken.append(choice)
-            order.append(choice)
-        dupes = len(set(order)) != len(order)
-        c1, c2 = st.columns([1, 4])
-        if c1.button("Continue →", type="primary", disabled=dupes):
-            label_to_key = {v: k for k, v in GOAL_LABEL.items()}
-            ss["ob_goals_ranked"] = [label_to_key[lbl] for lbl in order]
-            ss["ob_step"] = 3
-            st.rerun()
-        if c2.button("← Back"):
-            ss["ob_step"] = 1
-            st.rerun()
-        st.stop()
-
-    if ss["ob_step"] == 3:
-        st.markdown(f"**3 · Any nutrition preferences?**  \n"
-                    f"<span style='color:#777;font-size:13px;'>Select up to {MAX_PREFS} · optional</span>",
-                    unsafe_allow_html=True)
-        picked = _multi_select_block(NUTRITION_PREFS, ss["ob_prefs"], MAX_PREFS, "pref")
-        ss["ob_prefs"] = picked[:MAX_PREFS]
-        st.caption(f"{len(ss['ob_prefs'])} of {MAX_PREFS} selected · optional")
-
-        def _finish_onboarding():
-            ss["ob_step"] = "done"
-            _forced = forced_diet(ss["ob_goals_ranked"] or ss["ob_goals"])
-            if _forced:
-                ss["diet_select"] = KEY_TO_DIET_LABEL[_forced]
-
-        c1, c2 = st.columns([1, 4])
-        c1.button("See my recipes →", type="primary", on_click=_finish_onboarding)
-        if c2.button("← Back"):
-            ss["ob_step"] = 2 if len(ss["ob_goals"]) > 1 else 1
-            st.rerun()
-        st.stop()
-
-# ── Answer summary strip ──────────────────────────────────────────────────────
-goal_keys = ss["ob_goals_ranked"] or ss["ob_goals"]
-pref_keys = ss["ob_prefs"]
-
-_shares = rank_weights(len(goal_keys))
-_goal_txt = " · ".join(
-    f"{i + 1}. {GOAL_LABEL[k]} ({_shares[i]:.0%})" for i, k in enumerate(goal_keys)
-)
-_pref_txt = ", ".join(PREF_LABEL[k] for k in pref_keys) or "none"
-
-sc1, sc2 = st.columns([6, 1])
-with sc1:
-    st.markdown(
-        f"<div style='background:#F8FFF0;border-left:4px solid {color};border-radius:8px;"
-        f"padding:9px 13px;font-size:13px;line-height:1.7;'>"
-        f"<b>🎯 Your goals</b> &nbsp;{_goal_txt}<br>"
-        f"<b>🍽️ Preferences</b> &nbsp;{_pref_txt}</div>",
-        unsafe_allow_html=True,
-    )
-with sc2:
-    st.button("Change", on_click=_restart_onboarding, use_container_width=True)
-
-# ── Best-match framework suggestion ──────────────────────────────────────────
-ranked = recommend_diets(goal_keys, pref_keys)
-if ranked:
-    best_key, best_score = ranked[0]
-    best_label = KEY_TO_DIET_LABEL.get(best_key, best_key)
-    runner_key, runner_score = ranked[1]
-    forced_key = forced_diet(goal_keys)
-    if forced_key:
-        headline = "🎯 Framework set by your #1 goal"
-        why = f" — \"{GOAL_LABEL[first_goal(goal_keys)]}\""
-    else:
-        headline = "🏆 Best match for your answers"
-        why_goal = recommendation_reason(best_key, goal_keys)
-        why = f" — driven by \"{GOAL_LABEL[why_goal]}\"" if why_goal else ""
-    already = best_key == diet_key
-
-    rc1, rc2 = st.columns([6, 1])
-    with rc1:
-        st.markdown(
-            f"<div style='background:linear-gradient(100deg,#FAFDF2,#EEF7DE);"
-            f"border-left:4px solid {DIET_COLORS.get(best_key, color)};"
-            f"border-radius:8px;padding:9px 13px;font-size:13px;line-height:1.7;'>"
-            f"<b>{headline}: {best_label}</b> "
-            f"<span style='color:#666;'>({best_score:.0%} fit){why}</span><br>"
-            f"<span style='color:#777;'>Runner-up: {KEY_TO_DIET_LABEL.get(runner_key, runner_key)} "
-            f"({runner_score:.0%})"
-            + ("  ·  <b>you're viewing it now</b>" if already else "")
-            + "</span></div>",
-            unsafe_allow_html=True,
-        )
-    with rc2:
-        if not already and best_key in KEY_TO_DIET_LABEL:
-            def _apply_recommended(label=best_label):
-                ss["diet_select"] = label
-            st.button("Use it", on_click=_apply_recommended, type="primary", use_container_width=True)
-
-    with st.expander("How every framework scored against your answers"):
-        for k, sc in ranked:
-            bar = int(round(sc * 100))
-            lbl = KEY_TO_DIET_LABEL.get(k, k)
-            st.markdown(
-                f"<div style='display:flex;align-items:center;gap:8px;margin:3px 0;font-size:12px;'>"
-                f"<span style='width:190px;'>{lbl}</span>"
-                f"<span style='flex:1;background:#eee;border-radius:4px;height:9px;'>"
-                f"<span style='display:block;width:{bar}%;background:{DIET_COLORS.get(k,'#aaa')};"
-                f"height:9px;border-radius:4px;'></span></span>"
-                f"<span style='width:38px;text-align:right;color:#666;'>{sc:.0%}</span></div>",
-                unsafe_allow_html=True,
-            )
-        st.caption("Fit combines your ranked goals (50/30/20) with nutrition preferences (half weight).")
-
-st.write("")
 
 # ── Diet result header ────────────────────────────────────────────────────────
 _diet_emoji = diet_label.split()[0]
@@ -437,9 +301,31 @@ st.markdown(
     f"<p class='diet-header-desc'>{DIET_DESCRIPTIONS[diet_key]}</p>"
     f"<div class='diet-header-meta'>{flag_label} &nbsp;·&nbsp; {selected_week['label']}"
     + (f" &nbsp;·&nbsp; 🚫 {', '.join(avoid_labels)}" if avoid_labels else "")
+    + (f" &nbsp;·&nbsp; 🎯 {', '.join(GOAL_LABEL[k] for k in goal_keys)}" if goal_keys else "")
     + "</div></div>",
     unsafe_allow_html=True,
 )
+
+# ── Framework suggestion (only when goals are set) ────────────────────────────
+if goal_keys or pref_keys:
+    _ranked_fw = recommend_diets(goal_keys, pref_keys)
+    if _ranked_fw:
+        _best_key, _best_score = _ranked_fw[0]
+        _best_label = KEY_TO_DIET_LABEL.get(_best_key, _best_key)
+        _forced_key = forced_diet(goal_keys)
+        _already = _best_key == diet_key
+        if _forced_key:
+            _fw_headline = f"🎯 Your #1 goal suggests: {_best_label}"
+        else:
+            _fw_headline = f"🏆 Best framework for your goals: {_best_label} ({_best_score:.0%} fit)"
+        if not _already:
+            _fw_headline += " — you're viewing a different one"
+        st.markdown(
+            f"<div style='background:#F8FFF0;border-left:3px solid {DIET_COLORS.get(_best_key, color)};"
+            f"border-radius:8px;padding:7px 12px;font-size:12px;color:#555;margin-bottom:6px;'>"
+            f"{_fw_headline}</div>",
+            unsafe_allow_html=True,
+        )
 
 # ── Fetch ─────────────────────────────────────────────────────────────────────
 with st.spinner(f"Fetching {market_label} menu for {selected_week['label']}…"):
