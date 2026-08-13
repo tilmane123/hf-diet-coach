@@ -67,7 +67,8 @@ st.markdown(f"""
   .sel-panel {{ background:#fff; border-radius:18px;
                box-shadow:0 2px 10px rgba(0,0,0,.07);
                border-top:3px solid #91C11E;
-               padding:14px 14px 12px; text-align:center; margin-top:4px; }}
+               padding:14px 14px 12px; text-align:center; margin-top:4px;
+               min-height:110px; display:flex; flex-direction:column; align-items:center; justify-content:center; }}
   .sel-icon  {{ font-size:34px; line-height:1.1; margin-bottom:2px; }}
   .sel-value {{ font-size:17px; font-weight:800; color:#222; line-height:1.25; margin-top:2px; }}
   .sel-sub   {{ font-size:11px; color:#aaa; margin-top:1px; }}
@@ -268,8 +269,7 @@ with c2:
     st.markdown(
         f"<div class='sel-panel'>"
         f"<div class='sel-icon'>📅</div>"
-        f"<div class='sel-value'>W{_wk_num}</div>"
-        f"<div class='sel-sub'>{_wk_year}</div>"
+        f"<div class='sel-value'>W{_wk_num} · {_wk_year}</div>"
         f"<div class='sel-label'>Week</div></div>",
         unsafe_allow_html=True,
     )
