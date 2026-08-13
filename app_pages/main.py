@@ -444,6 +444,14 @@ top5_bases  = [_base(str(t)) for t in top5["title"].tolist()]
 remaining   = scored[~scored["recipe_id"].isin(top5_ids)].reset_index(drop=True)
 runner5     = diverse_top_n(remaining, n=5, max_per_flavor=1, sim_threshold=0.40,
                              seed_bases=top5_bases)
+# Fallback: if diversity filtering left fewer than 5, fill up from the remaining
+# pool by score — better to show a similar recipe than an empty slot.
+if len(runner5) < 5 and len(remaining) > len(runner5):
+    _id_col = "recipe_id" if "recipe_id" in runner5.columns else None
+    _used   = set(runner5[_id_col].tolist()) if _id_col else set()
+    _extra  = (remaining[~remaining[_id_col].isin(_used)] if _id_col
+               else remaining.iloc[len(runner5):])
+    runner5 = pd.concat([runner5, _extra.head(5 - len(runner5))], ignore_index=True)
 
 total_recipes = len(scored)
 st.caption(f"Scored {total_recipes} recipes · showing top 10")
@@ -501,7 +509,11 @@ def render_card(row, rank: int, color: str, dimmed: bool = False):
     veggies  = _count_veggies(row)
     veg_g    = _veggie_grams(row)
     diff     = row.get("difficulty") or ""
-    t_time   = row.get("total_time") or ""
+    _tt_raw  = row.get("total_time")
+    try:
+        t_time = str(int(float(_tt_raw))) if _tt_raw and str(_tt_raw) not in ("", "nan", "None") else ""
+    except (ValueError, TypeError):
+        t_time = ""
 
     img_html = (
         f'<img class="card-img" src="{img_url}" onerror="this.outerHTML=\'<div class=&quot;card-img-placeholder&quot;>🍽️</div>\'">'
