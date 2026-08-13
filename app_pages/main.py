@@ -92,18 +92,18 @@ st.markdown(f"""
     border-radius:10px !important;
     background:#FAFFF4 !important;
   }}
-  /* Avoid expander — orange accent on both border and header background */
+  /* Avoid expander — warm orange/pink outer box */
   [data-testid="stExpander"]:nth-of-type(2) {{
     border-left:4px solid #E06020 !important;
     border-radius:10px !important;
-    background:#FFF8F3 !important;
+    background:linear-gradient(135deg,#FFE8D6,#FFF0E8) !important;
   }}
   [data-testid="stExpander"]:nth-of-type(2) summary {{
-    background:linear-gradient(90deg,#FFF0E5,#FFF8F3) !important;
+    background:linear-gradient(90deg,#FFCBA4,#FFE0C8) !important;
     border-radius:10px !important;
   }}
   [data-testid="stExpander"]:nth-of-type(2) summary p {{
-    color:#C04A00 !important;
+    color:#8B2E00 !important;
     font-weight:700 !important;
   }}
 </style>
@@ -291,10 +291,10 @@ with c3:
 # ── Avoid selector ────────────────────────────────────────────────────────────
 with st.expander("🚫 Anything to avoid?"):
     st.markdown(
-        "<div style='background:linear-gradient(100deg,#FFF0E6,#FFF8F3);border-radius:10px;"
+        "<div style='background:linear-gradient(100deg,#EAF6D0,#F3FBE8);border-radius:10px;"
         "padding:10px 16px 8px;margin-bottom:10px;display:flex;align-items:center;gap:12px;'>"
         "<span style='font-size:28px;'>🥜🥛🌾🐷🐄🐟</span>"
-        "<span style='font-size:13px;color:#7A2E00;line-height:1.5;'>"
+        "<span style='font-size:13px;color:#3A5A0A;line-height:1.5;'>"
         "<b>Filter out ingredients you want to avoid</b> — optional.<br>"
         "Recipes containing the selected items will be excluded from results.</span></div>",
         unsafe_allow_html=True,
