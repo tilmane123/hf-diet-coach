@@ -680,7 +680,7 @@ def weekly_score_card(group: pd.DataFrame, diet_key: str, weights: dict, color: 
         f"<div style='font-size:12px;color:#666;'>Average across these 5 recipes · "
         f"🟢 on target &nbsp;🟡 below &nbsp;🔴 >2× limit</div></div>"
         f"</div>"
-        f"<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:12px;font-size:12px;'>"
+        f"<div style='display:grid;grid-template-columns:repeat(5,1fr);gap:12px;font-size:12px;'>"
         f"<div><b>💪 Protein</b><br><span style='color:{_chip_color(prot_avg,prot_tgt)};font-weight:700;'>{prot_avg:.1f}g</span> / {prot_tgt:.0f}g"
         f"{_bar(prot_avg, prot_tgt)}</div>"
         f"<div><b>🌾 Fibre</b><br><span style='color:{_chip_color(fibre_avg,fibre_tgt)};font-weight:700;'>{fibre_avg:.1f}g</span> / {fibre_tgt:.0f}g"
@@ -689,6 +689,9 @@ def weekly_score_card(group: pd.DataFrame, diet_key: str, weights: dict, color: 
         f"{_bar(sfat_avg, sfat_max_g, invert=True)}</div>"
         f"<div><b>🥦 Vegetables</b><br><span style='color:{_chip_color(veggie_avg,veggie_tgt)};font-weight:700;'>{veggie_avg:.0f}g</span> / {veggie_tgt:.0f}g"
         f"{_bar(veggie_avg, veggie_tgt)}</div>"
+        f"<div><b>🔥 Calories</b><br><span style='color:#555;font-weight:700;'>{kcal_avg:.0f}</span> kcal/recipe"
+        f"<div style='background:#e0e0e0;border-radius:4px;height:8px;width:100%;margin-top:4px;'>"
+        f"<div style='background:#aaa;width:{min(int(kcal_avg/8),100)}%;height:8px;border-radius:4px;'></div></div></div>"
         f"</div></div>",
         unsafe_allow_html=True,
     )
