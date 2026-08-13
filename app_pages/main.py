@@ -77,12 +77,13 @@ st.markdown(f"""
   /* ── Diet result header ── */
   .diet-header {{ border-radius:14px; padding:14px 20px; margin-bottom:6px;
                  box-shadow:0 4px 16px rgba(0,0,0,.12);
-                 display:flex; align-items:center; gap:14px; }}
+                 display:flex; align-items:center; justify-content:space-between; gap:14px; }}
+  .diet-header-left  {{ display:flex; align-items:center; gap:14px; flex-shrink:0; }}
   .diet-header-emoji {{ font-size:34px; flex-shrink:0; line-height:1; }}
-  .diet-header-body  {{ flex:1; min-width:0; }}
-  .diet-header-title {{ font-size:18px; font-weight:800; color:#fff; margin:0 0 3px; }}
-  .diet-header-desc  {{ font-size:12px; color:rgba(255,255,255,.85); margin:0; letter-spacing:.2px; }}
-  .diet-header-meta  {{ font-size:11px; color:rgba(255,255,255,.60); margin-top:4px; }}
+  .diet-header-title {{ font-size:18px; font-weight:800; color:#fff; margin:0; }}
+  .diet-header-right {{ text-align:right; min-width:0; }}
+  .diet-header-desc  {{ font-size:12px; color:rgba(255,255,255,.90); margin:0 0 4px; letter-spacing:.2px; font-weight:500; }}
+  .diet-header-meta  {{ font-size:11px; color:rgba(255,255,255,.65); }}
 
   /* ── Expander accents ── */
   [data-testid="stExpander"]:nth-of-type(1) {{
@@ -370,16 +371,19 @@ if not run_btn:
 # ── Diet result header ────────────────────────────────────────────────────────
 _diet_emoji = diet_label.split()[0]
 _diet_name  = " ".join(diet_label.split()[1:])
+_meta_str = (flag_label + " &nbsp;·&nbsp; " + selected_week["short"]
+             + (f" &nbsp;·&nbsp; 🚫 {', '.join(avoid_labels)}" if avoid_labels else "")
+             + (f" &nbsp;·&nbsp; 🎯 {', '.join(GOAL_LABEL[k] for k in goal_keys)}" if goal_keys else ""))
 st.markdown(
     f"<div class='diet-header' style='background:linear-gradient(120deg,{color}f0,{color}aa);'>"
+    f"<div class='diet-header-left'>"
     f"<div class='diet-header-emoji'>{_diet_emoji}</div>"
-    f"<div class='diet-header-body'>"
     f"<div class='diet-header-title'>{_diet_name}</div>"
-    f"<div class='diet-header-desc'>{DIET_DESCRIPTIONS.get(diet_key,'')}</div>"
-    f"<div class='diet-header-meta'>{flag_label} &nbsp;·&nbsp; {selected_week['short']}"
-    + (f" &nbsp;·&nbsp; 🚫 {', '.join(avoid_labels)}" if avoid_labels else "")
-    + (f" &nbsp;·&nbsp; 🎯 {', '.join(GOAL_LABEL[k] for k in goal_keys)}" if goal_keys else "")
-    + "</div></div></div>",
+    f"</div>"
+    f"<div class='diet-header-right'>"
+    f"<div class='diet-header-desc'>{DIET_DESCRIPTIONS.get(diet_key, '')}</div>"
+    f"<div class='diet-header-meta'>{_meta_str}</div>"
+    f"</div></div>",
     unsafe_allow_html=True,
 )
 
