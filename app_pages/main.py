@@ -59,12 +59,16 @@ st.markdown(f"""
   .section-header {{ font-size:17px; font-weight:700; margin:24px 0 10px; padding:10px 18px; border-radius:12px; color:#fff; }}
   .runner-up-card {{ opacity:0.85; }}
 
-  /* ── Selector panels ── */
-  .sel-panel {{ background:#fff; border-radius:20px; box-shadow:0 4px 18px rgba(0,0,0,.07);
-               padding:18px 16px 14px; text-align:center; margin-bottom:4px; }}
-  .sel-icon  {{ font-size:40px; margin-bottom:4px; line-height:1.1; }}
-  .sel-label {{ font-size:11px; font-weight:700; letter-spacing:.7px; text-transform:uppercase;
-               color:#bbb; margin-top:4px; }}
+  /* ── Selector panels (Lifesum/Oura-style clean tiles) ── */
+  .sel-panel {{ background:#fff; border-radius:18px;
+               box-shadow:0 2px 10px rgba(0,0,0,.07);
+               border-top:3px solid #91C11E;
+               padding:14px 14px 12px; text-align:center; margin-top:4px; }}
+  .sel-icon  {{ font-size:34px; line-height:1.1; margin-bottom:2px; }}
+  .sel-value {{ font-size:17px; font-weight:800; color:#222; line-height:1.25; margin-top:2px; }}
+  .sel-sub   {{ font-size:11px; color:#aaa; margin-top:1px; }}
+  .sel-label {{ font-size:10px; font-weight:700; letter-spacing:.8px; text-transform:uppercase;
+               color:#c0c0c0; margin-top:6px; }}
 
   /* ── Diet result header ── */
   .diet-header {{ border-radius:14px; padding:14px 20px; margin-bottom:6px;
@@ -76,18 +80,16 @@ st.markdown(f"""
   .diet-header-desc  {{ font-size:12px; color:rgba(255,255,255,.85); margin:0; letter-spacing:.2px; }}
   .diet-header-meta  {{ font-size:11px; color:rgba(255,255,255,.60); margin-top:4px; }}
 
-  /* ── Avoid bar ── */
-  .avoid-bar {{ background:#fff3ee; border:1.5px solid #ffb38a; border-radius:14px;
-               padding:10px 16px; margin:10px 0 14px;
-               display:flex; align-items:center; gap:10px; }}
-  .avoid-label {{ font-size:13px; font-weight:700; color:#c0440a;
-                  white-space:nowrap; flex-shrink:0; }}
-
-  /* ── Health goals expander accent ── */
-  [data-testid="stExpander"]:first-of-type {{
+  /* ── Expander accents ── */
+  [data-testid="stAppViewContainer"] [data-testid="stExpander"]:nth-of-type(1) {{
     border-left:4px solid #91C11E !important;
     border-radius:10px !important;
     background:#FAFFF4 !important;
+  }}
+  [data-testid="stAppViewContainer"] [data-testid="stExpander"]:nth-of-type(2) {{
+    border-left:4px solid #E06020 !important;
+    border-radius:10px !important;
+    background:#FFFAF7 !important;
   }}
 </style>
 """, unsafe_allow_html=True)
@@ -220,16 +222,18 @@ with st.expander("🌱 Choose your individual health goals"):
 c1, c2, c3 = st.columns(3)
 
 with c1:
-    # Read current selection from session state to show the right flag in the panel
-    _cur_flag = st.session_state.get("country_sel", list(_MARKET_FLAGS.values())[0])
-    _cur_mkt_name = _FLAG_TO_MARKET.get(_cur_flag, list(_MARKET_FLAGS.keys())[0])
-    _cur_icon = _MARKET_FLAG_ICON.get(_cur_mkt_name, "🌍")
-    st.markdown(f"<div class='sel-panel'><div class='sel-icon'>{_cur_icon}</div>"
-                f"<div class='sel-label'>Country</div></div>", unsafe_allow_html=True)
     flag_label = st.selectbox("country", list(_MARKET_FLAGS.values()),
                                label_visibility="collapsed", key="country_sel")
     market_label = _FLAG_TO_MARKET[flag_label]
     mkt = MARKETS[market_label]
+    _cur_icon = _MARKET_FLAG_ICON.get(market_label, "🌍")
+    st.markdown(
+        f"<div class='sel-panel'>"
+        f"<div class='sel-icon'>{_cur_icon}</div>"
+        f"<div class='sel-value'>{market_label}</div>"
+        f"<div class='sel-label'>Country</div></div>",
+        unsafe_allow_html=True,
+    )
 
 with c2:
     with st.spinner("Loading weeks…"):
@@ -248,11 +252,11 @@ with c2:
     _wk_num  = selected_week["week"]
     _wk_year = selected_week["year"]
     st.markdown(
-        f"<div class='sel-panel' style='margin-top:4px;'>"
+        f"<div class='sel-panel'>"
         f"<div class='sel-icon'>📅</div>"
-        f"<div style='font-size:22px;font-weight:800;color:#333;line-height:1;'>W{_wk_num}</div>"
-        f"<div style='font-size:11px;color:#aaa;margin-top:2px;'>{_wk_year}</div>"
-        f"<div class='sel-label' style='margin-top:4px;'>Week</div></div>",
+        f"<div class='sel-value'>W{_wk_num}</div>"
+        f"<div class='sel-sub'>{_wk_year}</div>"
+        f"<div class='sel-label'>Week</div></div>",
         unsafe_allow_html=True,
     )
 
@@ -263,21 +267,24 @@ with c3:
     _diet_icon = diet_label.split()[0]
     _diet_name_short = " ".join(diet_label.split()[1:])
     st.markdown(
-        f"<div class='sel-panel' style='margin-top:4px;'>"
-        f"<div class='sel-icon' style='font-size:42px;'>{_diet_icon}</div>"
-        f"<div style='font-size:13px;font-weight:700;color:#333;line-height:1.3;margin-top:2px;'>{_diet_name_short}</div>"
-        f"<div class='sel-label' style='margin-top:4px;'>Diet Framework</div></div>",
+        f"<div class='sel-panel'>"
+        f"<div class='sel-icon'>{_diet_icon}</div>"
+        f"<div class='sel-value' style='font-size:13px;'>{_diet_name_short}</div>"
+        f"<div class='sel-label'>Diet Framework</div></div>",
         unsafe_allow_html=True,
     )
 
 # ── Avoid selector ────────────────────────────────────────────────────────────
-_av_lbl, _av_sel = st.columns([1, 4])
-_av_lbl.markdown(
-    "<div style='height:100%;display:flex;align-items:center;'>"
-    "<span style='font-size:13px;font-weight:700;color:#c0440a;'>🚫 Avoid</span></div>",
-    unsafe_allow_html=True,
-)
-with _av_sel:
+with st.expander("🚫 Anything to avoid?"):
+    st.markdown(
+        "<div style='background:linear-gradient(100deg,#FFF0E6,#FFF8F3);border-radius:10px;"
+        "padding:10px 16px 8px;margin-bottom:10px;display:flex;align-items:center;gap:12px;'>"
+        "<span style='font-size:28px;'>🥜🥛🌾🐷🐄🐟</span>"
+        "<span style='font-size:13px;color:#7A2E00;line-height:1.5;'>"
+        "<b>Filter out ingredients you want to avoid</b> — optional.<br>"
+        "Recipes containing the selected items will be excluded from results.</span></div>",
+        unsafe_allow_html=True,
+    )
     avoid_labels = st.multiselect(
         "avoid",
         list(_AVOID_OPTIONS.keys()),
@@ -513,33 +520,38 @@ def render_card(row, rank: int, color: str, dimmed: bool = False):
         _nut_chip(f"🥦 {veggies} vegetables", veggies, _REF["veggies_count"])
     )
 
-    st.markdown(f"""
-    <div class="{outer_cls}">
-      {img_html}
-      <div class="card-body">
-        <div class="card-rank">#{rank}</div>
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
-          <div>
-            <div class="card-title">{title}</div>
-            <div class="card-sub">{subtitle}</div>
-          </div>
-          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;">
-            <span class="score-badge" style="background:{color};">{score}/100</span>
-            {"<span style='font-size:10px;color:#aaa;white-space:nowrap;'>⏱ " + str(t_time) + " min</span>" if t_time else ""}
-          </div>
-        </div>
-        <div class="nutrient-row">
-          <span class="nut nut-neutral">🔥 {kcal:.0f} kcal</span>
-          {_nut_chip(f"💪 {prot:.0f}g prot", prot, _REF["protein"])}
-          {_nut_chip(f"🌾 {fibre:.1f}g fibre", fibre, _REF["fibre"])}
-          {_nut_chip(f"🧈 {sfat:.1f}g sat.fat", sfat, _REF["sat_fat"], invert=True)}
-          {veg_chip}
-        </div>
-        {"<div class='ing'>" + ing_text + "</div>" if ing_text else ""}
-        {"<div style='font-size:11px;color:#aaa;margin-top:5px;'>" + " · ".join(meta_bits) + "</div>" if meta_bits else ""}
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Pre-compute conditional HTML — avoid blank lines inside the f-string,
+    # which cause Streamlit's markdown parser to escape HTML mode.
+    kcal_val = float(kcal) if kcal != "–" else 0.0
+    kcal_str = f"{kcal_val:.0f}" if kcal != "–" else "–"
+    time_html = (f"<span style='font-size:10px;color:#aaa;white-space:nowrap;'>⏱ {t_time} min</span>"
+                 if t_time else "")
+    ing_html  = f"<div class='ing'>{ing_text}</div>" if ing_text else ""
+    meta_html = (f"<div style='font-size:11px;color:#aaa;margin-top:5px;'>{' · '.join(meta_bits)}</div>"
+                 if meta_bits else "")
+    chip_prot = _nut_chip(f"💪 {prot:.0f}g prot", prot, _REF["protein"])
+    chip_fib  = _nut_chip(f"🌾 {fibre:.1f}g fibre", fibre, _REF["fibre"])
+    chip_sfat = _nut_chip(f"🧈 {sfat:.1f}g sat.fat", sfat, _REF["sat_fat"], invert=True)
+
+    st.markdown(
+        f'<div class="{outer_cls}">'
+        f'{img_html}'
+        f'<div class="card-body">'
+        f'<div class="card-rank">#{rank}</div>'
+        f'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">'
+        f'<div><div class="card-title">{title}</div><div class="card-sub">{subtitle}</div></div>'
+        f'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;">'
+        f'<span class="score-badge" style="background:{color};">{score}/100</span>'
+        f'{time_html}'
+        f'</div></div>'
+        f'<div class="nutrient-row">'
+        f'<span class="nut nut-neutral">🔥 {kcal_str} kcal</span>'
+        f'{chip_prot}{chip_fib}{chip_sfat}{veg_chip}'
+        f'</div>'
+        f'{ing_html}{meta_html}'
+        f'</div></div>',
+        unsafe_allow_html=True,
+    )
 
 
 def group_summary(group: pd.DataFrame) -> str:
