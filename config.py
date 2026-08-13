@@ -46,12 +46,13 @@ MAX_GOALS = 3
 MAX_PREFS = 3
 
 DIET_DESCRIPTIONS = {
-    "sports": "Let's build that strength together and fuel your body with more energy and protein.",
-    "max_veggies": "Looking for a way to increase daily vegetables intake for yourself or your kids? With these recipes that will make it easy!",
-    "eat_lancet": "The EAT-Lancet planetary health diet. Strongly plant-forward, strict on saturated fat, high fibre, minimal red meat. Designed for both human and planetary health.",
-    "who": "More balanced eating with lots of vegetables, more wholegrains and less salt.",
-    "mediterranean": "Traditional Mediterranean eating pattern. Rich in olive oil, vegetables, legumes, whole grains and fish. Moderate healthy fats, low processed foods.",
-    "blue_zone": "Inspired by Blue Zone and Longevity Diet research (Buettner & Longo). Emphasises legumes, plant proteins, high fibre, low calories and very low sugar & salt — the dietary pattern of the world's longest-lived populations.",
+    "sports":        "High protein · energy-dense · supports muscle repair",
+    "max_veggies":   "Maximum fresh produce · high fibre · colour variety",
+    "eat_lancet":    "Plant-forward · minimal red meat · low sat. fat · high fibre",
+    "who":           "Low salt & sugar · more wholegrains · balanced macros",
+    "mediterranean": "Olive oil · fish & legumes · wholegrains · low processed foods",
+    "blue_zone":     "Zero red meat · high fibre · low calorie · longevity-focused",
+    "dge":           "Balanced macros · German guidelines · moderate protein",
 }
 
 DIET_COLORS = {

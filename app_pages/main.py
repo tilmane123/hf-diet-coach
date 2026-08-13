@@ -42,17 +42,20 @@ st.markdown(f"""
   /* ── Recipe cards ── */
   .recipe-card {{ background:#fff; border-radius:16px; box-shadow:0 4px 16px rgba(0,0,0,.08); overflow:hidden; height:100%; transition:box-shadow .2s; }}
   .recipe-card:hover {{ box-shadow:0 8px 24px rgba(0,0,0,.13); }}
-  .card-img {{ width:100%; height:175px; object-fit:cover; }}
-  .card-img-placeholder {{ height:175px; background:#f0f0f0; display:flex; align-items:center; justify-content:center; font-size:48px; }}
-  .card-body {{ padding:12px 14px 14px; }}
-  .card-rank {{ font-size:11px; font-weight:600; color:#bbb; text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px; }}
-  .card-title {{ font-size:14px; font-weight:700; line-height:1.35; margin:0 0 2px; }}
-  .card-sub {{ font-size:12px; color:#888; margin:0 0 8px; }}
+  .card-img {{ width:100%; height:140px; object-fit:cover; }}
+  .card-img-placeholder {{ height:140px; background:#f0f0f0; display:flex; align-items:center; justify-content:center; font-size:40px; }}
+  .card-body {{ padding:9px 11px 11px; }}
+  .card-rank {{ font-size:10px; font-weight:600; color:#bbb; text-transform:uppercase; letter-spacing:.5px; margin-bottom:2px; }}
+  .card-title {{ font-size:13px; font-weight:700; line-height:1.3; margin:0 0 1px;
+                 display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; }}
+  .card-sub {{ font-size:11px; color:#999; margin:0 0 5px;
+               display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden; }}
   .score-badge {{ display:inline-block; border-radius:20px; padding:3px 11px; font-size:13px; font-weight:700; color:#fff; }}
   .nutrient-row {{ display:flex; gap:5px; flex-wrap:wrap; margin-top:8px; }}
-  .nut {{ border-radius:8px; padding:3px 8px; font-size:11px; color:#fff; font-weight:600; }}
+  .nut {{ border-radius:6px; padding:2px 6px; font-size:10px; color:#fff; font-weight:600; }}
   .nut-neutral {{ background:#f0f0f0; color:#555; font-weight:400; }}
-  .ing {{ font-size:11px; color:#888; margin-top:7px; line-height:1.55; }}
+  .ing {{ font-size:10px; color:#aaa; margin-top:5px; line-height:1.4;
+          display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; }}
   .section-header {{ font-size:17px; font-weight:700; margin:24px 0 10px; padding:10px 18px; border-radius:12px; color:#fff; }}
   .runner-up-card {{ opacity:0.85; }}
 
@@ -64,12 +67,14 @@ st.markdown(f"""
                color:#bbb; margin-top:4px; }}
 
   /* ── Diet result header ── */
-  .diet-header {{ border-radius:20px; padding:22px 28px; margin-bottom:6px;
-                 box-shadow:0 6px 24px rgba(0,0,0,.12); }}
-  .diet-header-emoji {{ font-size:40px; margin-bottom:8px; }}
-  .diet-header-title {{ font-size:22px; font-weight:800; color:#fff; margin:0 0 6px; }}
-  .diet-header-desc  {{ font-size:14px; color:rgba(255,255,255,.85); line-height:1.5; margin:0; }}
-  .diet-header-meta  {{ font-size:12px; color:rgba(255,255,255,.65); margin-top:10px; }}
+  .diet-header {{ border-radius:14px; padding:14px 20px; margin-bottom:6px;
+                 box-shadow:0 4px 16px rgba(0,0,0,.12);
+                 display:flex; align-items:center; gap:14px; }}
+  .diet-header-emoji {{ font-size:34px; flex-shrink:0; line-height:1; }}
+  .diet-header-body  {{ flex:1; min-width:0; }}
+  .diet-header-title {{ font-size:18px; font-weight:800; color:#fff; margin:0 0 3px; }}
+  .diet-header-desc  {{ font-size:12px; color:rgba(255,255,255,.85); margin:0; letter-spacing:.2px; }}
+  .diet-header-meta  {{ font-size:11px; color:rgba(255,255,255,.60); margin-top:4px; }}
 
   /* ── Avoid bar ── */
   .avoid-bar {{ background:#fff3ee; border:1.5px solid #ffb38a; border-radius:14px;
@@ -346,14 +351,15 @@ if not run_btn:
 _diet_emoji = diet_label.split()[0]
 _diet_name  = " ".join(diet_label.split()[1:])
 st.markdown(
-    f"<div class='diet-header' style='background:linear-gradient(135deg,{color}ee,{color}99);'>"
+    f"<div class='diet-header' style='background:linear-gradient(120deg,{color}f0,{color}aa);'>"
     f"<div class='diet-header-emoji'>{_diet_emoji}</div>"
+    f"<div class='diet-header-body'>"
     f"<div class='diet-header-title'>{_diet_name}</div>"
-    f"<p class='diet-header-desc'>{DIET_DESCRIPTIONS[diet_key]}</p>"
-    f"<div class='diet-header-meta'>{flag_label} &nbsp;·&nbsp; {selected_week['label']}"
+    f"<div class='diet-header-desc'>{DIET_DESCRIPTIONS.get(diet_key,'')}</div>"
+    f"<div class='diet-header-meta'>{flag_label} &nbsp;·&nbsp; {selected_week['short']}"
     + (f" &nbsp;·&nbsp; 🚫 {', '.join(avoid_labels)}" if avoid_labels else "")
     + (f" &nbsp;·&nbsp; 🎯 {', '.join(GOAL_LABEL[k] for k in goal_keys)}" if goal_keys else "")
-    + "</div></div>",
+    + "</div></div></div>",
     unsafe_allow_html=True,
 )
 
@@ -495,7 +501,7 @@ def render_card(row, rank: int, color: str, dimmed: bool = False):
         if img_url else
         '<div class="card-img-placeholder">🍽️</div>'
     )
-    ing_text  = ", ".join(str(i).title() for i in ings[:8]) if ings else ""
+    ing_text  = ", ".join(str(i).title() for i in ings[:5]) if ings else ""
     meta_bits = [x for x in [
         f"⚡ {diff}" if diff else "",
         f"⏱ {t_time} min" if t_time else "",
