@@ -270,8 +270,21 @@ def get_available_weeks(market: str, region_code: str) -> list[dict]:
         ORDER BY week_year DESC, week_number DESC
     """)
 
+    def _week_label(week: int, year: int) -> str:
+        try:
+            mon = datetime.date.fromisocalendar(year, week, 1)
+            sun = mon + datetime.timedelta(days=6)
+            if mon.month == sun.month:
+                date_part = f"{mon.day}–{sun.day} {mon.strftime('%b')}"
+            else:
+                date_part = f"{mon.day} {mon.strftime('%b')} – {sun.day} {sun.strftime('%b')}"
+            return f"Week {week}  ·  {date_part} {year}"
+        except Exception:
+            return f"W{week} {year}"
+
     return [
-        {"label": f"W{int(row.week_number)} {int(row.week_year)}",
+        {"label": _week_label(int(row.week_number), int(row.week_year)),
+         "short": f"W{int(row.week_number)} {int(row.week_year)}",
          "week": int(row.week_number), "year": int(row.week_year)}
         for _, row in df.iterrows()
     ]

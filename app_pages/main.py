@@ -58,10 +58,10 @@ st.markdown(f"""
 
   /* ── Selector panels ── */
   .sel-panel {{ background:#fff; border-radius:20px; box-shadow:0 4px 18px rgba(0,0,0,.07);
-               padding:20px 18px 16px; text-align:center; margin-bottom:4px; }}
-  .sel-icon  {{ font-size:36px; margin-bottom:6px; }}
-  .sel-label {{ font-size:12px; font-weight:700; letter-spacing:.6px; text-transform:uppercase;
-               color:#aaa; margin-bottom:8px; }}
+               padding:18px 16px 14px; text-align:center; margin-bottom:4px; }}
+  .sel-icon  {{ font-size:40px; margin-bottom:4px; line-height:1.1; }}
+  .sel-label {{ font-size:11px; font-weight:700; letter-spacing:.7px; text-transform:uppercase;
+               color:#bbb; margin-top:4px; }}
 
   /* ── Diet result header ── */
   .diet-header {{ border-radius:20px; padding:22px 28px; margin-bottom:6px;
@@ -71,9 +71,19 @@ st.markdown(f"""
   .diet-header-desc  {{ font-size:14px; color:rgba(255,255,255,.85); line-height:1.5; margin:0; }}
   .diet-header-meta  {{ font-size:12px; color:rgba(255,255,255,.65); margin-top:10px; }}
 
-  /* ── Avoid chips ── */
-  .avoid-bar {{ background:#fff8f0; border:1.5px solid #ffe0b2; border-radius:14px;
-               padding:14px 18px; margin:12px 0 16px; }}
+  /* ── Avoid bar ── */
+  .avoid-bar {{ background:#fff3ee; border:1.5px solid #ffb38a; border-radius:14px;
+               padding:10px 16px; margin:10px 0 14px;
+               display:flex; align-items:center; gap:10px; }}
+  .avoid-label {{ font-size:13px; font-weight:700; color:#c0440a;
+                  white-space:nowrap; flex-shrink:0; }}
+
+  /* ── Health goals expander accent ── */
+  [data-testid="stExpander"]:first-of-type {{
+    border-left:4px solid #91C11E !important;
+    border-radius:10px !important;
+    background:#FAFFF4 !important;
+  }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -84,6 +94,13 @@ _MARKET_FLAGS = {
     "United Kingdom":     "🇬🇧  United Kingdom",
     "France":             "🇫🇷  France",
     "Scandinavia (DKSE)": "🇸🇪  Scandinavia",
+}
+_MARKET_FLAG_ICON = {
+    "Germany":            "🇩🇪",
+    "Netherlands":        "🇳🇱",
+    "United Kingdom":     "🇬🇧",
+    "France":             "🇫🇷",
+    "Scandinavia (DKSE)": "🇸🇪",
 }
 _FLAG_TO_MARKET = {v: k for k, v in _MARKET_FLAGS.items()}
 
@@ -149,8 +166,17 @@ KEY_TO_DIET_LABEL  = {v: k for k, v in DIETS.items()}
 _LABEL_TO_GOAL = {v: k for k, v in GOAL_LABEL.items()}
 _LABEL_TO_PREF = {v: k for k, v in PREF_LABEL.items()}
 
-with st.expander("🎯 Personalise your results (optional)"):
-    st.caption("Set once — stays active when you switch country, week, or diet. Leave blank for pure diet-framework scoring.")
+with st.expander("🌱 Choose your individual health goals"):
+    st.markdown(
+        "<div style='background:linear-gradient(100deg,#EAF6D0,#F3FBE8);border-radius:10px;"
+        "padding:10px 16px 8px;margin-bottom:10px;display:flex;align-items:center;gap:12px;'>"
+        "<span style='font-size:28px;'>🥦🫀🏃</span>"
+        "<span style='font-size:13px;color:#3A5A0A;line-height:1.5;'>"
+        "<b>Personalise your recipe picks</b> — optional.<br>"
+        "Your goals re-rank results within the diet framework. "
+        "Stays active when you switch country, week, or diet.</span></div>",
+        unsafe_allow_html=True,
+    )
     _g_col, _p_col = st.columns(2)
     with _g_col:
         _goal_labels = st.multiselect(
@@ -189,16 +215,18 @@ with st.expander("🎯 Personalise your results (optional)"):
 c1, c2, c3 = st.columns(3)
 
 with c1:
-    st.markdown("<div class='sel-panel'><div class='sel-icon'>🌍</div>"
-                "<div class='sel-label'>Country</div></div>", unsafe_allow_html=True)
+    # Read current selection from session state to show the right flag in the panel
+    _cur_flag = st.session_state.get("country_sel", list(_MARKET_FLAGS.values())[0])
+    _cur_mkt_name = _FLAG_TO_MARKET.get(_cur_flag, list(_MARKET_FLAGS.keys())[0])
+    _cur_icon = _MARKET_FLAG_ICON.get(_cur_mkt_name, "🌍")
+    st.markdown(f"<div class='sel-panel'><div class='sel-icon'>{_cur_icon}</div>"
+                f"<div class='sel-label'>Country</div></div>", unsafe_allow_html=True)
     flag_label = st.selectbox("country", list(_MARKET_FLAGS.values()),
-                               label_visibility="collapsed")
+                               label_visibility="collapsed", key="country_sel")
     market_label = _FLAG_TO_MARKET[flag_label]
     mkt = MARKETS[market_label]
 
 with c2:
-    st.markdown("<div class='sel-panel'><div class='sel-icon'>📅</div>"
-                "<div class='sel-label'>Week</div></div>", unsafe_allow_html=True)
     with st.spinner("Loading weeks…"):
         try:
             weeks = get_available_weeks(mkt["market"], mkt["region_code"])
@@ -210,25 +238,48 @@ with c2:
         st.stop()
     week_idx = st.selectbox("week", range(len(weeks)),
                              format_func=lambda i: weeks[i]["label"],
-                             label_visibility="collapsed")
+                             label_visibility="collapsed", key="week_sel")
     selected_week = weeks[week_idx]
+    _wk_num  = selected_week["week"]
+    _wk_year = selected_week["year"]
+    st.markdown(
+        f"<div class='sel-panel' style='margin-top:4px;'>"
+        f"<div class='sel-icon'>📅</div>"
+        f"<div style='font-size:22px;font-weight:800;color:#333;line-height:1;'>W{_wk_num}</div>"
+        f"<div style='font-size:11px;color:#aaa;margin-top:2px;'>{_wk_year}</div>"
+        f"<div class='sel-label' style='margin-top:4px;'>Week</div></div>",
+        unsafe_allow_html=True,
+    )
 
 with c3:
-    st.markdown("<div class='sel-panel'><div class='sel-icon'>🥗</div>"
-                "<div class='sel-label'>Diet Framework</div></div>", unsafe_allow_html=True)
     diet_label = st.selectbox("diet", list(DIETS.keys()),
-                               label_visibility="collapsed")
+                               label_visibility="collapsed", key="diet_sel")
     diet_key = DIETS[diet_label]
+    _diet_icon = diet_label.split()[0]
+    _diet_name_short = " ".join(diet_label.split()[1:])
+    st.markdown(
+        f"<div class='sel-panel' style='margin-top:4px;'>"
+        f"<div class='sel-icon' style='font-size:42px;'>{_diet_icon}</div>"
+        f"<div style='font-size:13px;font-weight:700;color:#333;line-height:1.3;margin-top:2px;'>{_diet_name_short}</div>"
+        f"<div class='sel-label' style='margin-top:4px;'>Diet Framework</div></div>",
+        unsafe_allow_html=True,
+    )
 
 # ── Avoid selector ────────────────────────────────────────────────────────────
-st.markdown("<div class='avoid-bar'>", unsafe_allow_html=True)
-avoid_labels = st.multiselect(
-    "🚫  Anything to avoid?",
-    list(_AVOID_OPTIONS.keys()),
-    placeholder="Select ingredients to exclude…",
+_av_lbl, _av_sel = st.columns([1, 4])
+_av_lbl.markdown(
+    "<div style='height:100%;display:flex;align-items:center;'>"
+    "<span style='font-size:13px;font-weight:700;color:#c0440a;'>🚫 Avoid</span></div>",
+    unsafe_allow_html=True,
 )
+with _av_sel:
+    avoid_labels = st.multiselect(
+        "avoid",
+        list(_AVOID_OPTIONS.keys()),
+        placeholder="Peanuts, Dairy, Gluten, Pork, Beef, Fish…",
+        label_visibility="collapsed",
+    )
 avoid_keys = [_AVOID_OPTIONS[l] for l in avoid_labels]
-st.markdown("</div>", unsafe_allow_html=True)
 
 # ── Find button ───────────────────────────────────────────────────────────────
 _, btn_col, _ = st.columns([1, 2, 1])
