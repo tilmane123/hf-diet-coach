@@ -730,29 +730,6 @@ if not runner5.empty:
     render_row(runner5, start_rank=6, color=runner_color, dimmed=True,
                diet_key=diet_key, weights=live_w, show_weekly_score=True)
 
-# ── How scores work ───────────────────────────────────────────────────────────
-with st.expander("How are scores calculated?"):
-    st.markdown(f"""
-    Scores are 0–100 per recipe, computed from per-serving nutritional data.
-    Weights and thresholds are fully editable in the sidebar (session only) or saved permanently on the **Diet Settings** page.
-
-    | Framework | Key criteria |
-    |---|---|
-    | Health conscious choices | Salt <1.25 g, free sugars <5 %, sat. fat, fibre, diverse protein |
-    | Maximized vegetables | Grams of fresh produce per serving, fibre, plant protein, calorie balance |
-    | Improve Sports Performance | Protein grams (30 g target), energy, fibre, sat. fat, salt |
-    | Mediterranean | Fish/seafood, legumes, wholegrains, fibre, low sat. fat/salt, no red meat |
-    | Blue Zone | Plant protein, legumes, high fibre, very low sugar, low salt, low calorie density |
-    | EAT-Lancet | Plant/fish protein (red meat strongly penalised), fibre, sat. fat, calorie balance |
-
-    Health conscious choices, Maximized vegetables and Improve Sports Performance also
-    take **CPS tags** into account — recipes carrying the framework's tags (high-protein,
-    calorie-smart, extra-vegetables, family-friendly …) are lifted up the ranking.
-    Tag vocabularies differ per market, so this is a boost rather than a filter.
-
-    Recipes with missing nutritional data are excluded from ranking.
-    """)
-
 # ── Export ────────────────────────────────────────────────────────────────────
 st.divider()
 
