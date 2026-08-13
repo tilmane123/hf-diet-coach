@@ -730,6 +730,21 @@ if not runner5.empty:
     render_row(runner5, start_rank=6, color=runner_color, dimmed=True,
                diet_key=diet_key, weights=live_w, show_weekly_score=True)
 
+# ── Framework overview ────────────────────────────────────────────────────────
+with st.expander("📋 What does each diet framework measure?"):
+    st.markdown(f"""
+    | Framework | Key criteria |
+    |---|---|
+    | Health conscious choices | Salt <1.25 g, free sugars <5 %, sat. fat, fibre, diverse protein |
+    | Maximized vegetables | Grams of fresh produce per serving, fibre, plant protein, calorie balance |
+    | Improve Sports Performance | Protein grams (30 g target), energy, fibre, sat. fat, salt |
+    | Mediterranean | Fish/seafood, legumes, wholegrains, fibre, low sat. fat/salt, no red meat |
+    | Blue Zone | Plant protein, legumes, high fibre, very low sugar, low salt, low calorie density |
+    | EAT-Lancet | Plant/fish protein (red meat strongly penalised), fibre, sat. fat, calorie balance |
+
+    Weights and thresholds are editable in the sidebar or saved permanently on the **Diet Settings** page.
+    """)
+
 # ── Export ────────────────────────────────────────────────────────────────────
 st.divider()
 
@@ -773,11 +788,7 @@ with c2:
 
 # ── Methodology footnote ──────────────────────────────────────────────────────
 st.divider()
-st.markdown(
-    "<p style='font-size:11px;color:#aaa;margin-bottom:2px;'>* How scores are calculated</p>",
-    unsafe_allow_html=True,
-)
-with st.expander("", expanded=False):
+with st.expander("🔬 Full scoring methodology — weights, thresholds & formulas", expanded=False):
     fibre_tgt  = live_w.get("fibre_target_g", 10)
     salt_max   = live_w.get("salt_max_g", 2.0)
     sfat_max_p = live_w.get("sfat_max_pct", 0.10)
