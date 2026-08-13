@@ -40,8 +40,7 @@ HF_LEAF_BG    = "#F1F8E5"   # pale leaf wash
 st.markdown(f"""
 <style>
   /* ── Global spacing ── */
-  .block-container {{ padding-top:1rem !important; padding-bottom:1rem !important; }}
-  [data-testid="stAppViewBlockContainer"] {{ padding-top:0.5rem !important; }}
+  .block-container {{ padding-top:3.5rem !important; padding-bottom:1rem !important; }}
 
   /* ── Recipe cards ── */
   .recipe-card {{ background:#fff; border-radius:16px; box-shadow:0 4px 16px rgba(0,0,0,.08); overflow:hidden; height:100%; transition:box-shadow .2s; }}
@@ -174,9 +173,10 @@ def _apply_avoidances(df: pd.DataFrame, avoid_keys: list) -> pd.DataFrame:
 
 # ── App title ─────────────────────────────────────────────────────────────────
 st.markdown(
-    "<div style='text-align:center;padding:6px 0 8px;'>"
-    "<span style='font-size:28px;font-weight:800;letter-spacing:-1px;'>🥗 HF Diet Coach</span><br>"
-    "<span style='color:#aaa;font-size:13px;'>Find the best HelloFresh recipes for any diet · v0.29</span>"
+    "<div style='text-align:center;padding:4px 0 10px;'>"
+    "<span style='font-size:26px;font-weight:800;letter-spacing:-1px;'>🥗 HF Diet Coach</span>"
+    "<span style='color:#bbb;font-size:13px;margin-left:12px;vertical-align:middle;'>"
+    "Find the best HelloFresh recipes for any diet · v0.29</span>"
     "</div>",
     unsafe_allow_html=True,
 )
