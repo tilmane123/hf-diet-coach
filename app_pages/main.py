@@ -85,15 +85,24 @@ st.markdown(f"""
   .diet-header-meta  {{ font-size:11px; color:rgba(255,255,255,.60); margin-top:4px; }}
 
   /* ── Expander accents ── */
-  [data-testid="stAppViewContainer"] [data-testid="stExpander"]:nth-of-type(1) {{
+  [data-testid="stExpander"]:nth-of-type(1) {{
     border-left:4px solid #91C11E !important;
     border-radius:10px !important;
     background:#FAFFF4 !important;
   }}
-  [data-testid="stAppViewContainer"] [data-testid="stExpander"]:nth-of-type(2) {{
+  /* Avoid expander — orange accent on both border and header background */
+  [data-testid="stExpander"]:nth-of-type(2) {{
     border-left:4px solid #E06020 !important;
     border-radius:10px !important;
-    background:#FFFAF7 !important;
+    background:#FFF8F3 !important;
+  }}
+  [data-testid="stExpander"]:nth-of-type(2) summary {{
+    background:linear-gradient(90deg,#FFF0E5,#FFF8F3) !important;
+    border-radius:10px !important;
+  }}
+  [data-testid="stExpander"]:nth-of-type(2) summary p {{
+    color:#C04A00 !important;
+    font-weight:700 !important;
   }}
 </style>
 """, unsafe_allow_html=True)
