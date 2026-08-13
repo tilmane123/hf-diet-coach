@@ -705,10 +705,6 @@ def render_row(group: pd.DataFrame, start_rank: int, color: str, dimmed: bool = 
     for i, (_, recipe) in enumerate(group.iterrows()):
         with cols[i]:
             render_card(recipe, rank=start_rank + i, color=color, dimmed=dimmed)
-    st.markdown(
-        f"<div style='font-size:12px;color:#888;margin:6px 0 0 4px;'>{group_summary(group)}</div>",
-        unsafe_allow_html=True,
-    )
 
 
 # ── Top 5 ─────────────────────────────────────────────────────────────────────
