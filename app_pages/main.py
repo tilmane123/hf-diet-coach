@@ -502,10 +502,7 @@ def render_card(row, rank: int, color: str, dimmed: bool = False):
         '<div class="card-img-placeholder">🍽️</div>'
     )
     ing_text  = ", ".join(str(i).title() for i in ings[:5]) if ings else ""
-    meta_bits = [x for x in [
-        f"⚡ {diff}" if diff else "",
-        f"⏱ {t_time} min" if t_time else "",
-    ] if x]
+    meta_bits = [f"⚡ {diff}"] if diff else []
 
     outer_cls = "recipe-card runner-up-card" if dimmed else "recipe-card"
 
@@ -526,7 +523,10 @@ def render_card(row, rank: int, color: str, dimmed: bool = False):
             <div class="card-title">{title}</div>
             <div class="card-sub">{subtitle}</div>
           </div>
-          <span class="score-badge" style="background:{color};flex-shrink:0;">{score}/100</span>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;">
+            <span class="score-badge" style="background:{color};">{score}/100</span>
+            {"<span style='font-size:10px;color:#aaa;white-space:nowrap;'>⏱ " + str(t_time) + " min</span>" if t_time else ""}
+          </div>
         </div>
         <div class="nutrient-row">
           <span class="nut nut-neutral">🔥 {kcal:.0f} kcal</span>
