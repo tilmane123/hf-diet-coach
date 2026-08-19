@@ -232,6 +232,19 @@ with st.expander("🌱 Choose your individual health goals"):
         goal_keys = _raw_goal_keys
     pref_keys = [_LABEL_TO_PREF[l] for l in _pref_labels]
 
+# Auto-switch diet framework whenever goals/prefs change
+_goals_sig = repr(goal_keys) + repr(pref_keys)
+if _goals_sig != st.session_state.get("_goals_sig"):
+    st.session_state["_goals_sig"] = _goals_sig
+    if goal_keys:
+        _auto = forced_diet(goal_keys)
+        if not _auto:
+            _fw = recommend_diets(goal_keys, pref_keys)
+            if _fw:
+                _auto = _fw[0][0]
+        if _auto and _auto in KEY_TO_DIET_LABEL:
+            st.session_state["diet_sel"] = KEY_TO_DIET_LABEL[_auto]
+
 # ── Country / Week / Diet selector ───────────────────────────────────────────
 
 c1, c2, c3 = st.columns(3)
@@ -287,6 +300,26 @@ with c3:
         f"<div class='sel-label'>Diet Framework</div></div>",
         unsafe_allow_html=True,
     )
+
+# ── Framework recommendation banner ──────────────────────────────────────────
+if goal_keys:
+    _rk = recommend_diets(goal_keys, pref_keys)
+    if _rk:
+        _bk, _bs = _rk[0]
+        _bl = KEY_TO_DIET_LABEL.get(_bk, _bk)
+        _fk = forced_diet(goal_keys)
+        _goal_reason = GOAL_LABEL.get(first_goal(goal_keys), "")
+        if _bk == diet_key:
+            if _fk:
+                _rec_msg = (f"🎯 **{_bl}** auto-selected — required by your top goal "
+                            f'"{_goal_reason}"')
+            else:
+                _rec_msg = f"✅ **{_bl}** is the best match for your goals ({_bs:.0%} fit)"
+            st.success(_rec_msg)
+        else:
+            _rec_msg = (f"💡 **{_bl}** fits your goals best ({_bs:.0%} fit) — "
+                        f"but you're on a different framework")
+            st.info(_rec_msg)
 
 # ── Avoid selector ────────────────────────────────────────────────────────────
 with st.expander("🚫 Anything to avoid?"):
@@ -387,26 +420,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ── Framework suggestion (only when goals are set) ────────────────────────────
-if goal_keys or pref_keys:
-    _ranked_fw = recommend_diets(goal_keys, pref_keys)
-    if _ranked_fw:
-        _best_key, _best_score = _ranked_fw[0]
-        _best_label = KEY_TO_DIET_LABEL.get(_best_key, _best_key)
-        _forced_key = forced_diet(goal_keys)
-        _already = _best_key == diet_key
-        if _forced_key:
-            _fw_headline = f"🎯 Your #1 goal suggests: {_best_label}"
-        else:
-            _fw_headline = f"🏆 Best framework for your goals: {_best_label} ({_best_score:.0%} fit)"
-        if not _already:
-            _fw_headline += " — you're viewing a different one"
-        st.markdown(
-            f"<div style='background:#F8FFF0;border-left:3px solid {DIET_COLORS.get(_best_key, color)};"
-            f"border-radius:8px;padding:7px 12px;font-size:12px;color:#555;margin-bottom:6px;'>"
-            f"{_fw_headline}</div>",
-            unsafe_allow_html=True,
-        )
 
 # ── Fetch ─────────────────────────────────────────────────────────────────────
 with st.spinner(f"Fetching {market_label} menu for {selected_week['label']}…"):
