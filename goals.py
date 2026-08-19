@@ -10,6 +10,8 @@ Each goal maps to either:
   - a diet    — reuse an existing framework's scorer (health-conscious → WHO)
 """
 
+from __future__ import annotations
+
 import re
 import pandas as pd
 

@@ -3,6 +3,7 @@ Dietary scoring functions. Each returns a float 0–100.
 Input: a row from fetch_menu() DataFrame + an optional weights dict.
 Defaults are imported from config.DIET_WEIGHTS — override at call time to experiment.
 """
+from __future__ import annotations
 
 import re
 import pandas as pd
