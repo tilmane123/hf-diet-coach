@@ -232,6 +232,25 @@ with st.expander("🌱 Choose your individual health goals"):
         goal_keys = _raw_goal_keys
     pref_keys = [_LABEL_TO_PREF[l] for l in _pref_labels]
 
+# ── Avoid selector ────────────────────────────────────────────────────────────
+with st.expander("🚫 Anything to avoid?"):
+    st.markdown(
+        "<div style='background:linear-gradient(100deg,#EAF6D0,#F3FBE8);border-radius:10px;"
+        "padding:10px 16px 8px;margin-bottom:10px;display:flex;align-items:center;gap:12px;'>"
+        "<span style='font-size:28px;'>🥜🥛🌾🐷🐄🐟</span>"
+        "<span style='font-size:13px;color:#3A5A0A;line-height:1.5;'>"
+        "<b>Filter out ingredients you want to avoid</b> — optional.<br>"
+        "Recipes containing the selected items will be excluded from results.</span></div>",
+        unsafe_allow_html=True,
+    )
+    avoid_labels = st.multiselect(
+        "avoid",
+        list(_AVOID_OPTIONS.keys()),
+        placeholder="Peanuts, Dairy, Gluten, Pork, Beef, Fish…",
+        label_visibility="collapsed",
+    )
+avoid_keys = [_AVOID_OPTIONS[l] for l in avoid_labels]
+
 # Auto-switch diet framework whenever goals/prefs change
 _goals_sig = repr(goal_keys) + repr(pref_keys)
 if _goals_sig != st.session_state.get("_goals_sig"):
@@ -320,25 +339,6 @@ if goal_keys:
             _rec_msg = (f"💡 **{_bl}** fits your goals best ({_bs:.0%} fit) — "
                         f"but you're on a different framework")
             st.info(_rec_msg)
-
-# ── Avoid selector ────────────────────────────────────────────────────────────
-with st.expander("🚫 Anything to avoid?"):
-    st.markdown(
-        "<div style='background:linear-gradient(100deg,#EAF6D0,#F3FBE8);border-radius:10px;"
-        "padding:10px 16px 8px;margin-bottom:10px;display:flex;align-items:center;gap:12px;'>"
-        "<span style='font-size:28px;'>🥜🥛🌾🐷🐄🐟</span>"
-        "<span style='font-size:13px;color:#3A5A0A;line-height:1.5;'>"
-        "<b>Filter out ingredients you want to avoid</b> — optional.<br>"
-        "Recipes containing the selected items will be excluded from results.</span></div>",
-        unsafe_allow_html=True,
-    )
-    avoid_labels = st.multiselect(
-        "avoid",
-        list(_AVOID_OPTIONS.keys()),
-        placeholder="Peanuts, Dairy, Gluten, Pork, Beef, Fish…",
-        label_visibility="collapsed",
-    )
-avoid_keys = [_AVOID_OPTIONS[l] for l in avoid_labels]
 
 # ── Find button ───────────────────────────────────────────────────────────────
 _, btn_col, _ = st.columns([1, 2, 1])
