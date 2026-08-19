@@ -114,14 +114,14 @@ _MARKET_FLAGS = {
     "Netherlands":        "🇳🇱  Netherlands",
     "United Kingdom":     "🇬🇧  United Kingdom",
     "France":             "🇫🇷  France",
-    "Scandinavia (DKSE)": "🇸🇪  Scandinavia",
+    "Nordics":            "🇸🇪  Scandinavia",
 }
 _MARKET_FLAG_ICON = {
     "Germany":            "🇩🇪",
     "Netherlands":        "🇳🇱",
     "United Kingdom":     "🇬🇧",
     "France":             "🇫🇷",
-    "Scandinavia (DKSE)": "🇸🇪",
+    "Nordics":            "🇸🇪",
 }
 _FLAG_TO_MARKET = {v: k for k, v in _MARKET_FLAGS.items()}
 
