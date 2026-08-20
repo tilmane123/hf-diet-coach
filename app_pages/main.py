@@ -31,6 +31,20 @@ def _logo_data_uri(path_str: str) -> str:
 
 HF_LOGO = _logo_data_uri(str(HF_LOGO_FILE))
 
+# Nutri-Score logos — official PNGs embedded as data URIs at startup.
+# Falls back gracefully (no badge) when the file is missing.
+@st.cache_data
+def _load_nutriscore_images() -> dict:
+    ns_dir = ASSETS / "nutriscore"
+    out = {}
+    for grade in "ABCDE":
+        p = ns_dir / f"nutriscore_{grade}.png"
+        if p.exists():
+            out[grade] = "data:image/png;base64," + base64.b64encode(p.read_bytes()).decode()
+    return out
+
+NS_IMAGES = _load_nutriscore_images()
+
 # HelloFresh green palette
 HF_GREEN      = "#91C11E"   # brand lime
 HF_GREEN_DARK = "#5C8A0F"
@@ -501,54 +515,8 @@ def _veggie_grams(row) -> float:
 _REF = {"fibre": 8.0, "protein": 20.0, "sat_fat": 7.0,
         "veggies": 200.0, "veggies_count": 3}
 
-# Official Nutri-Score palette (EU 2021 regulation colours)
-_NS_BG      = {"A": "#038141", "B": "#85BB2F", "C": "#FECB02", "D": "#EE8100", "E": "#E63312"}
-_NS_TEXT    = {"A": "#fff",    "B": "#fff",    "C": "#222",    "D": "#fff",    "E": "#fff"}
-_NS_LETTERS = list("ABCDE")
-
-
-def _nutri_score_svg(letter: str) -> str:
-    """SVG logo mimicking the official Nutri-Score design for the given grade (A–E).
-
-    Five bottom-aligned coloured tabs; the active grade extends above the rest.
-    Non-active tabs are muted to 55 % opacity, matching the printed label look.
-    """
-    if letter not in _NS_BG:
-        return ""
-    GAP, MARGIN = 2, 2
-    AW, AH = 22, 30    # active tab: wider + taller
-    IW, IH = 18, 21    # inactive tab
-    BOTTOM = AH + 14   # y-coordinate of the bottom edge of all tabs
-    boxes = []
-    x = MARGIN
-    for l in _NS_LETTERS:
-        active = l == letter
-        w, h   = (AW, AH) if active else (IW, IH)
-        y      = BOTTOM - h
-        col    = _NS_BG[l]
-        tcol   = _NS_TEXT[l]
-        opac   = '' if active else 'opacity="0.55" '
-        fs     = 15 if active else 11
-        ty     = y + int(h * 0.65)
-        boxes.append(
-            f'<rect {opac}x="{x}" y="{y}" width="{w}" height="{h}" rx="4" fill="{col}"/>'
-            f'<text x="{x + w // 2}" y="{ty}" text-anchor="middle" '
-            f'font-family="Arial,Helvetica,sans-serif" font-size="{fs}" '
-            f'font-weight="900" fill="{tcol}">{l}</text>'
-        )
-        x += w + GAP
-    total_w = x - GAP + MARGIN
-    total_h = BOTTOM + 2
-    label_y = BOTTOM - AH - 4
-    return (
-        f'<svg width="{total_w}" height="{total_h}" viewBox="0 0 {total_w} {total_h}" '
-        f'xmlns="http://www.w3.org/2000/svg">'
-        f'<text x="{total_w // 2}" y="{label_y}" text-anchor="middle" '
-        f'font-family="Arial,Helvetica,sans-serif" font-size="7" font-weight="700" '
-        f'fill="#444" letter-spacing="0.3">Nutri-Score</text>'
-        + "".join(boxes)
-        + '</svg>'
-    )
+# Valid Nutri-Score grades — used as a presence check before rendering the badge
+_NS_GRADES = frozenset("ABCDE")
 
 def _chip_color(val: float, ref: float, invert: bool = False) -> str:
     """
@@ -626,8 +594,10 @@ def render_card(row, rank: int, color: str, dimmed: bool = False):
     chip_fib  = _nut_chip(f"🌾 {fibre:.1f}g fibre", fibre, _REF["fibre"])
     chip_sfat = _nut_chip(f"🧈 {sfat:.1f}g sat.fat", sfat, _REF["sat_fat"], invert=True)
     nutri_html = (
-        f"<div style='margin-top:3px;line-height:0;'>{_nutri_score_svg(nutri)}</div>"
-        if nutri in _NS_BG else ""
+        f"<div style='margin-top:4px;'>"
+        f"<img src='{NS_IMAGES[nutri]}' alt='Nutri-Score {nutri}' "
+        f"style='height:32px;width:auto;display:block;'></div>"
+        if nutri in _NS_GRADES and nutri in NS_IMAGES else ""
     )
 
     st.markdown(
