@@ -31,6 +31,14 @@ _FLAVOR_KW = _re.compile(
     _re.IGNORECASE,
 )
 
+_NUTRI_RE = _re.compile(r'nutri[-_\s]?score[-_\s]?([a-e])', _re.IGNORECASE)
+
+
+def _extract_nutri_score(tags_str: str) -> str:
+    """Return the Nutri-Score letter (A–E) found in a CPS tags string, or ''."""
+    m = _NUTRI_RE.search(str(tags_str or ""))
+    return m.group(1).upper() if m else ""
+
 
 def _base(title: str) -> str:
     """Normalise a recipe title to its core dish name for deduplication."""
@@ -445,5 +453,7 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
                 drop_idx.add(j)
 
     df = df.drop(index=list(drop_idx)).drop(columns=["_base"]).reset_index(drop=True)
+
+    df["nutri_score"] = df["tags"].fillna("").apply(_extract_nutri_score)
 
     return df.dropna(subset=["calories", "protein", "fibre"]).reset_index(drop=True)

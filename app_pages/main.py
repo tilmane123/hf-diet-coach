@@ -176,7 +176,7 @@ st.markdown(
     "<div style='text-align:center;padding:4px 0 10px;'>"
     "<span style='font-size:26px;font-weight:800;letter-spacing:-1px;'>🥗 HF Diet Coach</span>"
     "<span style='color:#bbb;font-size:13px;margin-left:12px;vertical-align:middle;'>"
-    "Find the best HelloFresh recipes for any diet · v0.29</span>"
+    "Find the best HelloFresh recipes for any diet · v0.30</span>"
     "</div>",
     unsafe_allow_html=True,
 )
@@ -352,7 +352,7 @@ with st.sidebar:
     if HF_LOGO_FILE.exists():
         st.image(str(HF_LOGO_FILE), width=170)
     st.title("HF Diet Coach")
-    st.caption("Scoring parameters · v0.29")
+    st.caption("Scoring parameters · v0.30")
     st.divider()
 
     # ── Scoring weights editor ──────────────────────────────────────────────
@@ -501,6 +501,10 @@ def _veggie_grams(row) -> float:
 _REF = {"fibre": 8.0, "protein": 20.0, "sat_fat": 7.0,
         "veggies": 200.0, "veggies_count": 3}
 
+# Official Nutri-Score palette (EU 2021 regulation colours)
+_NS_BG   = {"A": "#038141", "B": "#85BB2F", "C": "#FECB02", "D": "#EE8100", "E": "#E63312"}
+_NS_TEXT = {"A": "#fff",    "B": "#fff",    "C": "#1a1a1a", "D": "#fff",    "E": "#fff"}
+
 def _chip_color(val: float, ref: float, invert: bool = False) -> str:
     """
     Traffic-light colour for a nutrient chip.
@@ -545,6 +549,8 @@ def render_card(row, rank: int, color: str, dimmed: bool = False):
     except (ValueError, TypeError):
         t_time = ""
 
+    nutri     = str(row.get("nutri_score") or "")
+
     img_html = (
         f'<img class="card-img" src="{img_url}" onerror="this.outerHTML=\'<div class=&quot;card-img-placeholder&quot;>🍽️</div>\'">'
         if img_url else
@@ -574,6 +580,12 @@ def render_card(row, rank: int, color: str, dimmed: bool = False):
     chip_prot = _nut_chip(f"💪 {prot:.0f}g prot", prot, _REF["protein"])
     chip_fib  = _nut_chip(f"🌾 {fibre:.1f}g fibre", fibre, _REF["fibre"])
     chip_sfat = _nut_chip(f"🧈 {sfat:.1f}g sat.fat", sfat, _REF["sat_fat"], invert=True)
+    nutri_html = (
+        f"<span style='background:{_NS_BG[nutri]};color:{_NS_TEXT[nutri]};"
+        f"font-size:10px;font-weight:800;border-radius:5px;padding:2px 7px;"
+        f"letter-spacing:.4px;white-space:nowrap;'>Nutri-Score {nutri}</span>"
+        if nutri in _NS_BG else ""
+    )
 
     st.markdown(
         f'<div class="{outer_cls}">'
@@ -584,7 +596,7 @@ def render_card(row, rank: int, color: str, dimmed: bool = False):
         f'<div><div class="card-title">{title}</div><div class="card-sub">{subtitle}</div></div>'
         f'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;">'
         f'<span class="score-badge" style="background:{color};">{score}/100</span>'
-        f'{time_html}'
+        f'{nutri_html}{time_html}'
         f'</div></div>'
         f'<div class="nutrient-row">'
         f'<span class="nut nut-neutral">🔥 {kcal_str} kcal</span>'
