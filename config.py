@@ -1,7 +1,7 @@
 MARKETS = {
     "Germany":              {"market": "dach",    "region_code": "deat", "locale": "de-DE", "segment": "DE"},
     "Netherlands":          {"market": "benelux", "region_code": "nl",   "locale": "nl-NL", "segment": "NL"},
-    "United Kingdom":       {"market": "gb",      "region_code": "uk",   "locale": "en-GB", "segment": "GR"},
+    "United Kingdom":       {"market": "gb",      "region_code": "uk",   "locale": "en-GB", "segment": "GR", "brand_name": "HelloFresh"},
     "France":               {"market": "fr",      "region_code": "fr",   "locale": "fr-FR", "segment": "FR"},
     "Nordics":              {"market": "dkse",    "region_code": "se",   "locale": "sv-SE", "segment": "SE"},
 }
@@ -23,7 +23,7 @@ DIETS = {
 HEALTH_GOALS = [
     ("more_veg",       "I want to eat more vegetables"),
     ("kids_veg",       "I want my kids to discover more vegetables and more vegetable variety"),
-    ("health_con",     "I want to eat health-conscious (WHO / national guidelines)"),
+    ("health_con",     "I want to eat inspired on national guidelines"),
     ("sports_protein", "I want to improve my sports performance and protein intake"),
     ("wholegrain",     "I want to eat more whole grains"),
     ("gut_health",     "I want to improve my gut health"),

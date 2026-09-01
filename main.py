@@ -34,7 +34,7 @@ with st.sidebar:
         "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/HelloFresh_logo.svg/320px-HelloFresh_logo.svg.png",
         width=150,
     )
-    st.title("HF Diet Coach")
+    st.title("Hello Health Coach")
     st.caption("Best-fit HelloFresh recipes for any diet. · v0.21")
     st.divider()
 

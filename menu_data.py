@@ -130,7 +130,10 @@ _CPS_SERVINGS = 2   # the 2P ingredient list
 def _fetch_cps_ingredients(names: pd.DataFrame, mkt_up: str, segment: str):
     """Ingredient list + fresh-produce weight from the CPS 2-person picklist.
 
-    Returns (ing_agg, veggie_agg), both keyed on recipe_id.
+    Returns (ing_agg, veggie_agg, sku_agg), all keyed on recipe_id.
+    ing_agg  — ingredient_name list (human-readable, used for display)
+    sku_agg  — culinary_sku_name list (product-level SKU names, used for avoidance matching)
+    veggie_agg — PHF produce count + grams per serving
 
     CPS keys on recipe_code_unique, so this runs after the names query.
     culinary_sku_ratio is the fraction of the pack a recipe uses at this
@@ -139,12 +142,13 @@ def _fetch_cps_ingredients(names: pd.DataFrame, mkt_up: str, segment: str):
     """
     empty_ing = pd.DataFrame(columns=["recipe_id", "ingredients"])
     empty_veg = pd.DataFrame(columns=["recipe_id", "veggie_count", "veggie_grams"])
+    empty_sku = pd.DataFrame(columns=["recipe_id", "sku_names"])
     if names.empty or "unique_recipe_code" not in names.columns:
-        return empty_ing, empty_veg
+        return empty_ing, empty_veg, empty_sku
 
     codes = [str(c) for c in names["unique_recipe_code"].dropna().unique() if str(c)]
     if not codes:
-        return empty_ing, empty_veg
+        return empty_ing, empty_veg, empty_sku
 
     cps = _batched_query(f"""
         SELECT recipe_code_unique, ingredient_name, culinary_sku_name,
@@ -156,7 +160,7 @@ def _fetch_cps_ingredients(names: pd.DataFrame, mkt_up: str, segment: str):
     """, codes)
 
     if cps.empty:
-        return empty_ing, empty_veg
+        return empty_ing, empty_veg, empty_sku
 
     # One row per SKU — the table can repeat a SKU across recipe versions
     cps = cps.drop_duplicates(subset=["recipe_code_unique", "culinary_sku_code"],
@@ -165,7 +169,7 @@ def _fetch_cps_ingredients(names: pd.DataFrame, mkt_up: str, segment: str):
     cps["recipe_id"] = cps["recipe_code_unique"].map(code_to_id)
     cps = cps[cps["recipe_id"].notna()]
     if cps.empty:
-        return empty_ing, empty_veg
+        return empty_ing, empty_veg, empty_sku
 
     ing_agg = (
         cps.sort_values("ingredient_name")
@@ -175,9 +179,58 @@ def _fetch_cps_ingredients(names: pd.DataFrame, mkt_up: str, segment: str):
         .rename(columns={"ingredient_name": "ingredients"})
     )
 
+    sku_agg = (
+        cps.sort_values("culinary_sku_name")
+        .groupby("recipe_id")["culinary_sku_name"]
+        .apply(lambda x: sorted({str(i) for i in x if str(i) not in ("", "nan")}))
+        .reset_index()
+        .rename(columns={"culinary_sku_name": "sku_names"})
+    )
+
+    # ── 5-a-day vegetable grammage via culinary_sku lookup ─────────────────────
+    # culinary_sku.five_a_day = '["CONTRIBUTES"]' marks each SKU as counting
+    # toward 5-a-day. weight_nut_calc is the authoritative pack weight in grams.
+    # veggie_grams = sum(weight_nut_calc * culinary_sku_ratio) / servings
+    sku_codes = [str(c) for c in cps["culinary_sku_code"].dropna().unique() if str(c)]
+    sku_meta = _batched_query(f"""
+        SELECT culinary_sku_code, five_a_day, weight_nut_calc
+        FROM glue.public_edw_base_grain_live.culinary_sku
+        WHERE market = '{mkt_up}'
+          AND culinary_sku_code IN ('{{ids}}')
+    """, sku_codes)
+
+    if not sku_meta.empty:
+        sku_meta = sku_meta.drop_duplicates(subset=["culinary_sku_code"], keep="first")
+        cps_veg = cps.merge(sku_meta, on="culinary_sku_code", how="left")
+        # PHF (Produce, Herbs & Fruits) SKUs where five_a_day = CONTRIBUTES only.
+        # Any PHF SKU tagged DOES_NOT_CONTRIBUTE is explicitly excluded.
+        # Non-PHF SKUs are excluded regardless of their five_a_day tag.
+        contributes = cps_veg[
+            cps_veg["culinary_sku_code"].str.startswith("PHF", na=False)
+            & cps_veg["five_a_day"].fillna("").str.contains("CONTRIBUTES", na=False)
+            & ~cps_veg["five_a_day"].fillna("").str.contains("DOES_NOT", na=False)
+        ].copy()
+        if not contributes.empty:
+            ratio  = pd.to_numeric(contributes["culinary_sku_ratio"], errors="coerce").fillna(0.0)
+            weight = pd.to_numeric(contributes["weight_nut_calc"],    errors="coerce").fillna(0.0)
+            contributes["_g"] = weight * ratio
+            veggie_agg = (
+                contributes.groupby("recipe_id")
+                .agg(veggie_count=("ingredient_name", "nunique"), veggie_grams=("_g", "sum"))
+                .reset_index()
+            )
+            veggie_agg["veggie_grams"] = (veggie_agg["veggie_grams"] / _CPS_SERVINGS).round(0)
+        else:
+            veggie_agg = empty_veg
+        # Always return here — never fall through to the PHF fallback when
+        # sku_meta is available, as the fallback has no five_a_day awareness.
+        return ing_agg, veggie_agg, sku_agg
+
+    # Fallback (sku_meta unavailable): estimate from PHF SKU pack weights.
+    # No five_a_day data available here — all PHF items are counted.
     phf = cps[cps["culinary_sku_code"].str.contains("PHF", na=False)].copy()
     if phf.empty:
-        return ing_agg, empty_veg
+        return ing_agg, empty_veg, sku_agg
 
     ratio = pd.to_numeric(phf["culinary_sku_ratio"], errors="coerce").fillna(0.0)
     phf["_g"] = phf["culinary_sku_name"].map(_pack_grams) * ratio
@@ -186,9 +239,8 @@ def _fetch_cps_ingredients(names: pd.DataFrame, mkt_up: str, segment: str):
         .agg(veggie_count=("ingredient_name", "nunique"), veggie_grams=("_g", "sum"))
         .reset_index()
     )
-    # Weights cover the whole 2-serving recipe — divide down to one serving
     veggie_agg["veggie_grams"] = (veggie_agg["veggie_grams"] / _CPS_SERVINGS).round(0)
-    return ing_agg, veggie_agg
+    return ing_agg, veggie_agg, sku_agg
 
 
 def _pick_serving_size(picklist: pd.DataFrame) -> pd.DataFrame:
@@ -250,7 +302,7 @@ def _batched_query(query_template: str, ids: list, id_placeholder: str = "{ids}"
 
 
 @st.cache_data(ttl=7200, show_spinner=False)
-def get_available_weeks(market: str, region_code: str) -> list[dict]:
+def get_available_weeks(market: str, region_code: str, brand_name: str = "") -> list[dict]:
     """Return current week + next 3 weeks for this market (fetched directly by week number)."""
     (min_week, min_year), (max_week, max_year) = _week_window()
 
@@ -265,6 +317,7 @@ def get_available_weeks(market: str, region_code: str) -> list[dict]:
     conditions = " OR ".join(
         f"(week_number = {w} AND week_year = {y})" for w, y in pairs
     )
+    brand_clause = f"AND brand_name = '{brand_name}'" if brand_name else ""
 
     df = run_query(f"""
         SELECT DISTINCT week_number, week_year
@@ -272,8 +325,9 @@ def get_available_weeks(market: str, region_code: str) -> list[dict]:
         WHERE market = '{market}'
           AND region_code = '{region_code}'
           AND item_type = 'recipe'
-          AND status NOT IN ('draft', 'removed')
+          AND status IN ('published', 'planned')
           AND recipe_id IS NOT NULL
+          {brand_clause}
           AND ({conditions})
         ORDER BY week_year DESC, week_number DESC
     """)
@@ -300,8 +354,10 @@ def get_available_weeks(market: str, region_code: str) -> list[dict]:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_menu(market: str, region_code: str, locale: str, segment: str,
-               week: int, year: int) -> pd.DataFrame:
+               week: int, year: int, brand_name: str = "") -> pd.DataFrame:
     """Fetch full enriched menu for a given market/week with names, images, nutrition."""
+
+    brand_clause = f"AND brand_name = '{brand_name}'" if brand_name else ""
 
     # Step 1: menu slots — deduplicated by recipe_id
     menu = run_query(f"""
@@ -310,8 +366,7 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
                    ROW_NUMBER() OVER (
                        PARTITION BY recipe_id
                        ORDER BY CASE status
-                           WHEN 'published' THEN 1 WHEN 'planned' THEN 2
-                           WHEN 'locked' THEN 3 WHEN 'unlocked' THEN 4 ELSE 5 END,
+                           WHEN 'published' THEN 1 WHEN 'planned' THEN 2 ELSE 3 END,
                        slot_number
                    ) AS rn
             FROM glue.menu_services.menu_global
@@ -319,7 +374,8 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
               AND market = '{market}' AND region_code = '{region_code}'
               AND week_year = {year}
               AND recipe_id IS NOT NULL AND item_type = 'recipe'
-              AND status NOT IN ('draft', 'removed')
+              AND status IN ('published', 'planned')
+              {brand_clause}
         )
         SELECT slot_number, slot_group, recipe_id, product_category_name, sub_type, status
         FROM ranked WHERE rn = 1 ORDER BY slot_number
@@ -346,6 +402,13 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
                 LEFT JOIN glue.culinary_services.recipe_global r ON t.recipe_id = r.id
                 WHERE t.locale = '{locale}' AND t.market = '{market}'
                   AND t.recipe_id IN ('{id_str}')
+                  AND (r.status IS NULL OR r.status NOT IN (
+                      'In Development', 'Draft', 'Prototyping',
+                      'Cooking Test 1', 'Cooking Test 2',
+                      'Complexity Test', 'Ingredient Test',
+                      'Optimisation Test', 'Guidelines Test',
+                      'External Testing', 'Rework', 'Ready for Editorial'
+                  ))
             ),
             base AS (
                 SELECT recipe_id, title, subtitle, old_img, unique_recipe_code,
@@ -398,7 +461,7 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
 
     # Ingredients + produce weight from the CPS 2-person picklist, keyed on
     # unique_recipe_code — so it needs the names result first.
-    ing_agg, veggie_agg = _fetch_cps_ingredients(names, mkt_up, segment)
+    ing_agg, veggie_agg, sku_agg = _fetch_cps_ingredients(names, mkt_up, segment)
 
     # Join + final dedup
     df = (
@@ -407,6 +470,7 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
         .merge(nutrition, on="recipe_id", how="left")
         .merge(ing_agg, on="recipe_id", how="left")
         .merge(veggie_agg, on="recipe_id", how="left")
+        .merge(sku_agg, on="recipe_id", how="left")
     )
     df["veggie_count"] = df["veggie_count"].fillna(0).astype(int)
     df["veggie_grams"] = df.get("veggie_grams", pd.Series(dtype=float)).fillna(0.0)

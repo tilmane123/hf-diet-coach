@@ -10,7 +10,7 @@ import streamlit as st
 from config import (MARKETS, DIETS, DIET_DESCRIPTIONS, DIET_COLORS,
                     HEALTH_GOALS, NUTRITION_PREFS, MAX_GOALS, MAX_PREFS)
 from menu_data import get_available_weeks, fetch_menu, diverse_top_n, _base
-from scoring import score_menu
+from scoring import score_menu, _detect_protein
 from goals import (rank_weights, recommend_diets, recommendation_reason,
                    forced_diet, apply_goal_filters, first_goal,
                    GOAL1_FIBRE_FIRST, GOAL1_MAX_CARBS)
@@ -73,7 +73,13 @@ st.markdown(f"""
   .nut-neutral {{ background:#f0f0f0; color:#555; font-weight:400; }}
   .ing {{ font-size:10px; color:#aaa; margin-top:5px; line-height:1.4;
           display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; }}
-  .section-header {{ font-size:17px; font-weight:700; margin:24px 0 10px; padding:10px 18px; border-radius:12px; color:#fff; }}
+  .section-header {{ font-size:17px; font-weight:700; margin:24px 0 10px; padding:10px 18px; border-radius:12px; color:#fff;
+                    display:flex; align-items:center; justify-content:space-between; gap:12px; }}
+  .section-header-cta {{ font-size:14px; font-weight:700; color:#fff !important; background:#91C11E;
+                         border:none; border-radius:20px;
+                         padding:6px 18px; text-decoration:none !important; white-space:nowrap;
+                         transition:background .15s; box-shadow:0 2px 6px rgba(0,0,0,.18); }}
+  .section-header-cta:hover {{ background:#a8d82a; text-decoration:none !important; }}
   .runner-up-card {{ opacity:0.85; }}
 
   /* ── Selector panels (Lifesum/Oura-style clean tiles) ── */
@@ -128,7 +134,7 @@ _MARKET_FLAGS = {
     "Netherlands":        "🇳🇱  Netherlands",
     "United Kingdom":     "🇬🇧  United Kingdom",
     "France":             "🇫🇷  France",
-    "Nordics":            "🇸🇪  Scandinavia",
+    "Nordics":            "🇸🇪  Nordics",
 }
 _MARKET_FLAG_ICON = {
     "Germany":            "🇩🇪",
@@ -139,6 +145,15 @@ _MARKET_FLAG_ICON = {
 }
 _FLAG_TO_MARKET = {v: k for k, v in _MARKET_FLAGS.items()}
 
+# ── HelloFresh website links per market ───────────────────────────────────────
+_HF_LINKS = {
+    "Germany":        "https://www.hellofresh.de",
+    "Netherlands":    "https://www.hellofresh.nl",
+    "United Kingdom": "https://www.hellofresh.co.uk",
+    "France":         "https://www.hellofresh.fr",
+    "Nordics":        "https://www.hellofresh.se",
+}
+
 # ── Avoidance options ─────────────────────────────────────────────────────────
 _AVOID_OPTIONS = {
     "🥜 Peanuts":        "peanut",
@@ -146,6 +161,7 @@ _AVOID_OPTIONS = {
     "🌾 Gluten":         "gluten",
     "🐷 Pork":           "pork",
     "🐄 Beef":           "beef",
+    "🐔 Chicken":        "chicken",
     "🐟 Fish & Seafood": "fish",
 }
 
@@ -156,8 +172,11 @@ def _apply_avoidances(df: pd.DataFrame, avoid_keys: list) -> pd.DataFrame:
     ing_text = df["ingredients"].apply(
         lambda x: " ".join(str(i) for i in (x or [])).lower()
     )
+    sku_text = df["sku_names"].apply(
+        lambda x: " ".join(str(i) for i in (x or [])).lower()
+    ) if "sku_names" in df.columns else pd.Series("", index=df.index)
     title_text = df["title"].fillna("").str.lower()
-    combined = ing_text + " " + title_text
+    combined = ing_text + " " + sku_text + " " + title_text
     for key in avoid_keys:
         if key == "peanut":
             mask &= ~combined.str.contains(r"erdnuss|peanut", regex=True)
@@ -172,25 +191,39 @@ def _apply_avoidances(df: pd.DataFrame, avoid_keys: list) -> pd.DataFrame:
         elif key == "pork":
             mask &= ~combined.str.contains(
                 r"schwein|speck|bacon|schinken|chorizo|salami|pancetta|pork|"
-                r"pulled\s*pork|salsiccia|mortadella|coppa", regex=True)
+                r"pulled\s*pork|salsiccia|mortadella|coppa|'?nduja|lardo|guanciale|"
+                r"lonza|porchetta|ciccioli|lardons", regex=True)
         elif key == "beef":
             mask &= ~combined.str.contains(
                 r"rind\w*|hack\w*|beef|roastbeef|hüftsteak|steak|burger|"
                 r"bolognese|tartar|brisket", regex=True)
+        elif key == "chicken":
+            _prot = df.apply(_detect_protein, axis=1)
+            _kw   = combined.str.contains(
+                r"hähnchen|hühnchen|hühn\w*|huhn|poulet|chicken|pollo|"
+                r"kyckl\w*|kip\b|kylling", regex=True)
+            mask &= ~((_prot == "poultry") | _kw)
         elif key == "fish":
-            mask &= ~combined.str.contains(
-                r"lachs|salmon|kabeljau|cod|thunfisch|tuna|garnele|shrimp|prawn|"
-                r"forelle|trout|dorade|pangasius|hake|seabass|fisch\b|fish\b|"
-                r"muschel|mussel|squid|calamari|crevette", regex=True)
+            _prot = df.apply(_detect_protein, axis=1)
+            _kw   = combined.str.contains(
+                r"lachs|salmon|saumon|zalm|lax|laks|kabeljau|cod|morue|kabeljauw|torsk|"
+                r"thunfisch|tuna|thon|tonijn|tonfisk|tunfisk|garnele|shrimp|prawn|"
+                r"crevette|garnaal|räkor|rejer|forelle|trout|truite|forel|öring|ørred|"
+                r"dorade|pangasius|hake|seabass|fisch\b|fish\b|poisson|vis\b|"
+                r"muschel|mussel|moule|mossel|mussla|musling|squid|calamari|"
+                r"anchov|sardine|herring|hering|hareng|haring|sill|sild|"
+                r"mackerel|makrele|maquereau|makreel|makrill|makrel|"
+                r"tilapia|zander|bar\b|brasse|dorade|daurade", regex=True)
+            mask &= ~((_prot == "fish") | _kw)
     return df[mask].reset_index(drop=True)
 
 
 # ── App title ─────────────────────────────────────────────────────────────────
 st.markdown(
     "<div style='text-align:center;padding:4px 0 10px;'>"
-    "<span style='font-size:26px;font-weight:800;letter-spacing:-1px;'>🥗 HF Diet Coach</span>"
+    "<span style='font-size:26px;font-weight:800;letter-spacing:-1px;'>🥗 Hello Health Coach</span>"
     "<span style='color:#bbb;font-size:13px;margin-left:12px;vertical-align:middle;'>"
-    "Find the best HelloFresh recipes for any diet · v0.31</span>"
+    "Find the best HelloFresh recipes for any diet · v0.43</span>"
     "</div>",
     unsafe_allow_html=True,
 )
@@ -202,6 +235,28 @@ KEY_TO_DIET_LABEL  = {v: k for k, v in DIETS.items()}
 _LABEL_TO_GOAL = {v: k for k, v in GOAL_LABEL.items()}
 _LABEL_TO_PREF = {v: k for k, v in PREF_LABEL.items()}
 
+# ── Country-specific national dietary guideline names ─────────────────────────
+_NATIONAL_GUIDELINES = {
+    "Germany":        "DGE",
+    "Netherlands":    "Schijf van Vijf",
+    "United Kingdom": "Eatwell Guide",
+    "France":         "PNNS",
+    "Nordics":        "Nordic Nutrition Recommendations",
+}
+_HEALTH_CON_BASE  = GOAL_LABEL["health_con"]  # "I want to eat inspired on national guidelines"
+_sel_flag         = st.session_state.get("country_sel", list(_MARKET_FLAGS.values())[0])
+_sel_country      = _FLAG_TO_MARKET.get(_sel_flag, "Germany")
+_guideline_name   = _NATIONAL_GUIDELINES.get(_sel_country, "national guidelines")
+_HEALTH_CON_LABEL = f"{_HEALTH_CON_BASE} ({_guideline_name})"
+# Build goals options with the country-specific label substituted in
+_GOAL_OPTIONS = [
+    _HEALTH_CON_LABEL if key == "health_con" else lbl
+    for key, lbl in HEALTH_GOALS
+]
+# Map both the dynamic label and the base label back to the key
+_LABEL_TO_GOAL[_HEALTH_CON_LABEL] = "health_con"
+_LABEL_TO_GOAL[_HEALTH_CON_BASE]  = "health_con"
+
 with st.expander("🌱 Choose your individual health goals"):
     st.markdown(
         "<div style='background:linear-gradient(100deg,#EAF6D0,#F3FBE8);border-radius:10px;"
@@ -209,7 +264,7 @@ with st.expander("🌱 Choose your individual health goals"):
         "<span style='font-size:28px;'>🥦🫀🏃</span>"
         "<span style='font-size:13px;color:#3A5A0A;line-height:1.5;'>"
         "<b>Personalise your recipe picks</b> — optional.<br>"
-        "Your goals re-rank results within the diet framework. "
+        "Your goals re-rank results within the dietary framework. "
         "Stays active when you switch country, week, or diet.</span></div>",
         unsafe_allow_html=True,
     )
@@ -217,7 +272,7 @@ with st.expander("🌱 Choose your individual health goals"):
     with _g_col:
         _goal_labels = st.multiselect(
             "Health goals (up to 3)",
-            options=[lbl for _, lbl in HEALTH_GOALS],
+            options=_GOAL_OPTIONS,
             max_selections=MAX_GOALS,
             placeholder="What matters to you?",
             key="pers_goals",
@@ -287,11 +342,12 @@ with c1:
                                label_visibility="collapsed", key="country_sel")
     market_label = _FLAG_TO_MARKET[flag_label]
     mkt = MARKETS[market_label]
-    _cur_icon = _MARKET_FLAG_ICON.get(market_label, "🌍")
+    _cur_icon  = _MARKET_FLAG_ICON.get(market_label, "🌍")
+    _hf_link   = _HF_LINKS.get(market_label, "https://www.hellofresh.com")
     st.markdown(
         f"<div class='sel-panel'>"
         f"<div class='sel-icon'>{_cur_icon}</div>"
-        f"<div class='sel-value'>{market_label}</div>"
+        f"<div class='sel-value'>{flag_label}</div>"
         f"<div class='sel-label'>Country</div></div>",
         unsafe_allow_html=True,
     )
@@ -299,7 +355,7 @@ with c1:
 with c2:
     with st.spinner("Loading weeks…"):
         try:
-            weeks = get_available_weeks(mkt["market"], mkt["region_code"])
+            weeks = get_available_weeks(mkt["market"], mkt["region_code"], mkt.get("brand_name", ""))
         except Exception as e:
             st.error(f"Could not load weeks: {e}")
             st.stop()
@@ -330,7 +386,7 @@ with c3:
         f"<div class='sel-panel'>"
         f"<div class='sel-icon'>{_diet_icon}</div>"
         f"<div class='sel-value' style='font-size:13px;'>{_diet_name_short}</div>"
-        f"<div class='sel-label'>Diet Framework</div></div>",
+        f"<div class='sel-label'>Dietary Framework</div></div>",
         unsafe_allow_html=True,
     )
 
@@ -365,8 +421,8 @@ st.divider()
 with st.sidebar:
     if HF_LOGO_FILE.exists():
         st.image(str(HF_LOGO_FILE), width=170)
-    st.title("HF Diet Coach")
-    st.caption("Scoring parameters · v0.31")
+    st.title("Hello Health Coach")
+    st.caption("Scoring parameters · v0.43")
     st.divider()
 
     # ── Scoring weights editor ──────────────────────────────────────────────
@@ -445,6 +501,7 @@ with st.spinner(f"Fetching {market_label} menu for {selected_week['label']}…")
             segment=mkt["segment"],
             week=selected_week["week"],
             year=selected_week["year"],
+            brand_name=mkt.get("brand_name", ""),
         )
     except Exception as e:
         import traceback
@@ -622,7 +679,6 @@ def render_card(row, rank: int, color: str, dimmed: bool = False):
 
 
 def group_summary(group: pd.DataFrame) -> str:
-    from scoring import _detect_protein
     red_meat_n = sum(1 for _, r in group.iterrows() if _detect_protein(r) == "red_meat")
     fibre_avg  = group["fibre"].fillna(0).astype(float).mean()
     kcal_avg   = group["calories"].fillna(0).astype(float).mean()
@@ -750,7 +806,11 @@ def render_row(group: pd.DataFrame, start_rank: int, color: str, dimmed: bool = 
 
 # ── Top 5 ─────────────────────────────────────────────────────────────────────
 st.markdown(
-    f"<div class='section-header' style='background:{color};'>🏅 Top 5 — Best fit</div>",
+    f"<div class='section-header' style='background:{color};'>"
+    f"<span>🏅 Top 5 — Best fit</span>"
+    f"<a class='section-header-cta' href='{_hf_link}' target='_blank'>"
+    f"🛒 Subscribe &amp; get these recipes</a>"
+    f"</div>",
     unsafe_allow_html=True,
 )
 _g1 = first_goal(goal_keys)
@@ -769,7 +829,7 @@ if not runner5.empty:
                diet_key=diet_key, weights=live_w, show_weekly_score=True)
 
 # ── Framework overview ────────────────────────────────────────────────────────
-with st.expander("📋 What does each diet framework measure?"):
+with st.expander("📋 What does each dietary framework measure?"):
     st.markdown(f"""
     | Framework | Key criteria |
     |---|---|
