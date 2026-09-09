@@ -223,7 +223,7 @@ st.markdown(
     "<div style='text-align:center;padding:4px 0 10px;'>"
     "<span style='font-size:26px;font-weight:800;letter-spacing:-1px;'>🥗 Hello Health Coach</span>"
     "<span style='color:#bbb;font-size:13px;margin-left:12px;vertical-align:middle;'>"
-    "Find the best HelloFresh recipes for any diet · v0.43</span>"
+    "Find the best HelloFresh recipes for any diet · v0.44</span>"
     "</div>",
     unsafe_allow_html=True,
 )
@@ -422,7 +422,7 @@ with st.sidebar:
     if HF_LOGO_FILE.exists():
         st.image(str(HF_LOGO_FILE), width=170)
     st.title("Hello Health Coach")
-    st.caption("Scoring parameters · v0.43")
+    st.caption("Scoring parameters · v0.44")
     st.divider()
 
     # ── Scoring weights editor ──────────────────────────────────────────────

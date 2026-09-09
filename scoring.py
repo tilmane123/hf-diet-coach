@@ -66,7 +66,7 @@ def _text(row) -> str:
         str(row.get("sub_type", "") or ""),    # e.g. "Veggie", "Vegetarisch"
         str(row.get("dish_type", "") or ""),   # e.g. "vegetarian", "vegan"
         str(row.get("category", "") or ""),
-        " ".join(row.get("ingredients", []) or []),
+        " ".join(row.get("ingredients") if isinstance(row.get("ingredients"), list) else []),
     ]).lower()
 
 
