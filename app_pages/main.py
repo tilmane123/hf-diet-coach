@@ -134,14 +134,14 @@ _MARKET_FLAGS = {
     "Netherlands":        "🇳🇱  Netherlands",
     "United Kingdom":     "🇬🇧  United Kingdom",
     "France":             "🇫🇷  France",
-    "Nordics":            "🇸🇪  Nordics",
+    "Denmark":            "🇩🇰  Denmark",
 }
 _MARKET_FLAG_ICON = {
     "Germany":            "🇩🇪",
     "Netherlands":        "🇳🇱",
     "United Kingdom":     "🇬🇧",
     "France":             "🇫🇷",
-    "Nordics":            "🇸🇪",
+    "Denmark":            "🇩🇰",
 }
 _FLAG_TO_MARKET = {v: k for k, v in _MARKET_FLAGS.items()}
 
@@ -151,7 +151,7 @@ _HF_LINKS = {
     "Netherlands":    "https://www.hellofresh.nl",
     "United Kingdom": "https://www.hellofresh.co.uk",
     "France":         "https://www.hellofresh.fr",
-    "Nordics":        "https://www.hellofresh.se",
+    "Denmark":        "https://www.hellofresh.dk",
 }
 
 # ── Avoidance options ─────────────────────────────────────────────────────────
@@ -170,10 +170,10 @@ def _apply_avoidances(df: pd.DataFrame, avoid_keys: list) -> pd.DataFrame:
         return df
     mask = pd.Series(True, index=df.index)
     ing_text = df["ingredients"].apply(
-        lambda x: " ".join(str(i) for i in (x or [])).lower()
+        lambda x: " ".join(str(i) for i in x).lower() if isinstance(x, list) else ""
     )
     sku_text = df["sku_names"].apply(
-        lambda x: " ".join(str(i) for i in (x or [])).lower()
+        lambda x: " ".join(str(i) for i in x).lower() if isinstance(x, list) else ""
     ) if "sku_names" in df.columns else pd.Series("", index=df.index)
     title_text = df["title"].fillna("").str.lower()
     combined = ing_text + " " + sku_text + " " + title_text
@@ -223,7 +223,7 @@ st.markdown(
     "<div style='text-align:center;padding:4px 0 10px;'>"
     "<span style='font-size:26px;font-weight:800;letter-spacing:-1px;'>🥗 Hello Health Coach</span>"
     "<span style='color:#bbb;font-size:13px;margin-left:12px;vertical-align:middle;'>"
-    "Find the best HelloFresh recipes for any diet · v0.44</span>"
+    "Find the best HelloFresh recipes for any diet · v0.59</span>"
     "</div>",
     unsafe_allow_html=True,
 )
@@ -241,7 +241,7 @@ _NATIONAL_GUIDELINES = {
     "Netherlands":    "Schijf van Vijf",
     "United Kingdom": "Eatwell Guide",
     "France":         "PNNS",
-    "Nordics":        "Nordic Nutrition Recommendations",
+    "Denmark":        "Nordic Nutrition Recommendations",
 }
 _HEALTH_CON_BASE  = GOAL_LABEL["health_con"]  # "I want to eat inspired on national guidelines"
 _sel_flag         = st.session_state.get("country_sel", list(_MARKET_FLAGS.values())[0])
@@ -422,7 +422,7 @@ with st.sidebar:
     if HF_LOGO_FILE.exists():
         st.image(str(HF_LOGO_FILE), width=170)
     st.title("Hello Health Coach")
-    st.caption("Scoring parameters · v0.44")
+    st.caption("Scoring parameters · v0.59")
     st.divider()
 
     # ── Scoring weights editor ──────────────────────────────────────────────
@@ -601,15 +601,30 @@ def _nut_chip(label: str, val: float, ref: float, invert: bool = False) -> str:
 
 # ── Card renderer ─────────────────────────────────────────────────────────────
 def render_card(row, rank: int, color: str, dimmed: bool = False):
-    score    = row.get("score", 0)
-    title    = row.get("title") or "Untitled"
-    subtitle = row.get("subtitle") or ""
-    img_url  = row.get("image_url") or ""
-    kcal     = row.get("calories") or "–"
-    prot     = float(row.get("protein") or 0)
-    fibre    = float(row.get("fibre") or 0)
-    sfat     = float(row.get("sat_fat") or 0)
-    ings     = row.get("ingredients") or []
+    def _str(v, default=""):
+        """Return v as a string, collapsing NaN/None/empty to default."""
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            return default
+        s = str(v).strip()
+        return s if s and s != "nan" else default
+
+    def _num(v, default=0.0):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return default
+
+    score    = _num(row.get("score"), 0)
+    title    = _str(row.get("title"), "Untitled")
+    subtitle = _str(row.get("subtitle"))
+    img_url  = _str(row.get("image_url"))
+    kcal     = row.get("calories")
+    kcal     = "–" if kcal is None or (isinstance(kcal, float) and pd.isna(kcal)) else kcal
+    prot     = _num(row.get("protein"))
+    fibre    = _num(row.get("fibre"))
+    sfat     = _num(row.get("sat_fat"))
+    _ings    = row.get("ingredients")
+    ings     = _ings if isinstance(_ings, list) else []
     veggies  = _count_veggies(row)
     veg_g    = _veggie_grams(row)
     diff     = row.get("difficulty") or ""
@@ -640,7 +655,7 @@ def render_card(row, rank: int, color: str, dimmed: bool = False):
 
     # Pre-compute conditional HTML — avoid blank lines inside the f-string,
     # which cause Streamlit's markdown parser to escape HTML mode.
-    kcal_val = float(kcal) if kcal != "–" else 0.0
+    kcal_val = _num(kcal) if kcal != "–" else 0.0
     kcal_str = f"{kcal_val:.0f}" if kcal != "–" else "–"
     time_html = (f"<span style='font-size:10px;color:#aaa;white-space:nowrap;'>⏱ {t_time} min</span>"
                  if t_time else "")

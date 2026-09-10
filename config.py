@@ -3,11 +3,11 @@ MARKETS = {
     "Netherlands":          {"market": "benelux", "region_code": "nl",   "locale": "nl-NL", "segment": "NL"},
     "United Kingdom":       {"market": "gb",      "region_code": "uk",   "locale": "en-GB", "segment": "GR", "brand_name": "HelloFresh"},
     "France":               {"market": "fr",      "region_code": "fr",   "locale": "fr-FR", "segment": "FR"},
-    "Nordics":              {"market": "dkse",    "region_code": "se",   "locale": "sv-SE", "segment": "SE"},
+    "Denmark":              {"market": "dkse",    "region_code": "dk",   "locale": "da-DK", "segment": "DK"},
 }
 
 DIETS = {
-    "💚 Health conscious choices":             "who",
+    "💚 Health Conscious Eating": "who",
     "🥦 Maximized vegetables":                 "max_veggies",
     "💪 Improve Sports Performance":           "sports",
     "🫒 Mediterranean Diet":                   "mediterranean",
@@ -21,14 +21,15 @@ DIETS = {
 # Order matters: it is the order shown, and the keys are used in goals.GOAL_FIT.
 
 HEALTH_GOALS = [
-    ("more_veg",       "I want to eat more vegetables"),
-    ("kids_veg",       "I want my kids to discover more vegetables and more vegetable variety"),
-    ("health_con",     "I want to eat inspired on national guidelines"),
-    ("sports_protein", "I want to improve my sports performance and protein intake"),
-    ("wholegrain",     "I want to eat more whole grains"),
-    ("gut_health",     "I want to improve my gut health"),
-    ("low_carb",       "I want to minimize carbohydrates"),
-    ("longevity",      "I want to increase longevity"),
+    ("more_veg",           "I want to eat more vegetables"),
+    ("kids_veg",           "I want my kids to discover more vegetables and more vegetable variety"),
+    ("balanced_lifestyle", "I want to maintain a balanced lifestyle"),
+    ("health_con",         "I want to eat inspired on national guidelines"),
+    ("sports_protein",     "I want to improve my sports performance and protein intake"),
+    ("wholegrain",         "I want to eat more whole grains"),
+    ("gut_health",         "I want to improve my gut health"),
+    ("low_carb",           "I want to minimize carbohydrates"),
+    ("longevity",          "I want to increase longevity"),
 ]
 
 NUTRITION_PREFS = [

@@ -71,20 +71,22 @@ def _fit_diet(diet_key: str):
 
 # goal key → per-recipe fit function. Keys match config.HEALTH_GOALS.
 GOAL_FIT = {
-    "more_veg":       _fit_veg,
-    "kids_veg":       _fit_veg,
-    "health_con":     _fit_diet("who"),
-    "sports_protein": _fit_protein,
-    "wholegrain":     _fit_wholegrain,
-    "gut_health":     _fit_fibre,
-    "low_carb":       _fit_low_carb,
-    "longevity":      _fit_diet("blue_zone"),
+    "more_veg":           _fit_veg,
+    "kids_veg":           _fit_veg,
+    "balanced_lifestyle": _fit_diet("who"),
+    "health_con":         _fit_diet("who"),
+    "sports_protein":     _fit_protein,
+    "wholegrain":         _fit_wholegrain,
+    "gut_health":         _fit_fibre,
+    "low_carb":           _fit_low_carb,
+    "longevity":          _fit_diet("blue_zone"),
 }
 
 # Goals that imply a diet framework — surfaced as a suggestion in the UI.
 GOAL_SUGGESTS_DIET = {
-    "health_con": "who",
-    "longevity":  "blue_zone",
+    "balanced_lifestyle": "who",
+    "health_con":         "who",
+    "longevity":          "blue_zone",
 }
 
 # ── Nutrition preferences (question 3) ────────────────────────────────────────
@@ -179,15 +181,16 @@ def goal_fit(df: pd.DataFrame, goal_keys) -> pd.Series:
 _DIETS = ("who", "mediterranean", "blue_zone", "eat_lancet", "sports", "max_veggies")
 
 GOAL_DIET_AFFINITY = {
-    #                  who   medit  blue   eat-l  sport  maxveg
-    "more_veg":       (0.70, 0.85, 0.85, 0.90, 0.40, 1.00),
-    "kids_veg":       (0.70, 0.80, 0.60, 0.75, 0.40, 1.00),
-    "health_con":     (1.00, 0.70, 0.60, 0.60, 0.50, 0.70),
-    "sports_protein": (0.60, 0.65, 0.40, 0.50, 1.00, 0.40),
-    "wholegrain":     (0.85, 1.00, 0.80, 0.75, 0.55, 0.70),
-    "gut_health":     (0.70, 0.80, 1.00, 0.90, 0.50, 0.85),
-    "low_carb":       (0.65, 0.55, 0.30, 0.30, 0.70, 0.45),
-    "longevity":      (0.65, 0.90, 1.00, 0.85, 0.40, 0.80),
+    #                        who   medit  blue   eat-l  sport  maxveg
+    "more_veg":             (0.70, 0.85, 0.85, 0.90, 0.40, 1.00),
+    "kids_veg":             (0.70, 0.80, 0.60, 0.75, 0.40, 1.00),
+    "balanced_lifestyle":   (1.00, 0.70, 0.60, 0.60, 0.50, 0.70),
+    "health_con":           (1.00, 0.70, 0.60, 0.60, 0.50, 0.70),
+    "sports_protein":       (0.60, 0.65, 0.40, 0.50, 1.00, 0.40),
+    "wholegrain":           (0.85, 1.00, 0.80, 0.75, 0.55, 0.70),
+    "gut_health":           (0.70, 0.80, 1.00, 0.90, 0.50, 0.85),
+    "low_carb":             (0.65, 0.55, 0.30, 0.30, 0.70, 0.45),
+    "longevity":            (0.65, 0.90, 1.00, 0.85, 0.40, 0.80),
 }
 
 PREF_DIET_AFFINITY = {
@@ -207,11 +210,12 @@ PREF_DIET_AFFINITY = {
 # The top-ranked goal (the 50 % one) can override the affinity scoring outright.
 
 GOAL1_FORCED_DIET = {
-    "more_veg":       "max_veggies",
-    "kids_veg":       "max_veggies",
-    "health_con":     "who",
-    "sports_protein": "sports",
-    "longevity":      "blue_zone",
+    "more_veg":           "max_veggies",
+    "kids_veg":           "max_veggies",
+    "balanced_lifestyle": "who",
+    "health_con":         "who",
+    "sports_protein":     "sports",
+    "longevity":          "blue_zone",
 }
 
 # Top goal here → fibre drives the ranking, whichever framework is in use

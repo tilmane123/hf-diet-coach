@@ -82,7 +82,7 @@ def run_query(query: str) -> pd.DataFrame:
 
 
 def run_queries(queries: dict) -> dict:
-    """Run multiple named queries over the cached connection."""
+    """Run multiple named queries sequentially over the cached connection."""
     results = {}
     conn = _get_connection()
     for name, query in queries.items():

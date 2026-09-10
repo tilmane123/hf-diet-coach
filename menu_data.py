@@ -319,11 +319,12 @@ def get_available_weeks(market: str, region_code: str, brand_name: str = "") -> 
     )
     brand_clause = f"AND brand_name = '{brand_name}'" if brand_name else ""
 
+    region_clause = f"AND region_code = '{region_code}'" if region_code else ""
     df = run_query(f"""
         SELECT DISTINCT week_number, week_year
         FROM glue.menu_services.menu_global
         WHERE market = '{market}'
-          AND region_code = '{region_code}'
+          {region_clause}
           AND item_type = 'recipe'
           AND status IN ('published', 'planned')
           AND recipe_id IS NOT NULL
@@ -331,6 +332,20 @@ def get_available_weeks(market: str, region_code: str, brand_name: str = "") -> 
           AND ({conditions})
         ORDER BY week_year DESC, week_number DESC
     """)
+
+    # If no results with region_code, retry without it (e.g. Nordics dkse)
+    if df.empty and region_code:
+        df = run_query(f"""
+            SELECT DISTINCT week_number, week_year
+            FROM glue.menu_services.menu_global
+            WHERE market = '{market}'
+              AND item_type = 'recipe'
+              AND status IN ('published', 'planned')
+              AND recipe_id IS NOT NULL
+              {brand_clause}
+              AND ({conditions})
+            ORDER BY week_year DESC, week_number DESC
+        """)
 
     def _week_label(week: int, year: int) -> str:
         try:
@@ -360,26 +375,34 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
     brand_clause = f"AND brand_name = '{brand_name}'" if brand_name else ""
 
     # Step 1: menu slots — deduplicated by recipe_id
-    menu = run_query(f"""
-        WITH ranked AS (
-            SELECT slot_number, slot_group, recipe_id, product_category_name, sub_type, status,
-                   ROW_NUMBER() OVER (
-                       PARTITION BY recipe_id
-                       ORDER BY CASE status
-                           WHEN 'published' THEN 1 WHEN 'planned' THEN 2 ELSE 3 END,
-                       slot_number
-                   ) AS rn
-            FROM glue.menu_services.menu_global
-            WHERE week_number = {week} AND week_year = {year}
-              AND market = '{market}' AND region_code = '{region_code}'
-              AND week_year = {year}
-              AND recipe_id IS NOT NULL AND item_type = 'recipe'
-              AND status IN ('published', 'planned')
-              {brand_clause}
-        )
-        SELECT slot_number, slot_group, recipe_id, product_category_name, sub_type, status
-        FROM ranked WHERE rn = 1 ORDER BY slot_number
-    """)
+    region_clause = f"AND region_code = '{region_code}'" if region_code else ""
+
+    def _run_menu_query(rc: str) -> pd.DataFrame:
+        return run_query(f"""
+            WITH ranked AS (
+                SELECT slot_number, slot_group, recipe_id, product_category_name, sub_type, status,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY recipe_id
+                           ORDER BY CASE status
+                               WHEN 'published' THEN 1 WHEN 'planned' THEN 2 ELSE 3 END,
+                           slot_number
+                       ) AS rn
+                FROM glue.menu_services.menu_global
+                WHERE week_number = {week} AND week_year = {year}
+                  AND market = '{market}' {rc}
+                  AND recipe_id IS NOT NULL AND item_type = 'recipe'
+                  AND status IN ('published', 'planned')
+                  {brand_clause}
+            )
+            SELECT slot_number, slot_group, recipe_id, product_category_name, sub_type, status
+            FROM ranked WHERE rn = 1
+            ORDER BY slot_number
+        """)
+
+    menu = _run_menu_query(region_clause)
+    # Fallback: retry without region_code if nothing found (e.g. dkse where region may differ)
+    if menu.empty and region_clause:
+        menu = _run_menu_query("")
 
     if menu.empty:
         return pd.DataFrame()
@@ -387,28 +410,30 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
     menu = menu.drop_duplicates(subset=["recipe_id"], keep="first").reset_index(drop=True)
     ids = [str(x) for x in menu["recipe_id"].dropna().unique().tolist()]
     id_str = "','".join(ids)
-
     mkt_up = market.upper()
 
-    # Steps 2-4: run all enrichment queries over the cached connection
+    # Stage 2: names + nutrition in parallel — both filtered to this week's recipe_ids (fast)
+    # Nutrition also applies the 900 kcal cap here (recipe_id-filtered, so cheap to add).
     res = run_queries({
         "names": f"""
             WITH t AS (
                 SELECT t.recipe_id, t.title, t.subtitle,
                        r.image_url AS old_img, r.unique_recipe_code, r.difficulty, r.dish_type,
                        r.active_cooking_time, r.total_time,
-                       ROW_NUMBER() OVER (PARTITION BY t.recipe_id ORDER BY t.published_at DESC) AS rn
+                       ROW_NUMBER() OVER (
+                           PARTITION BY t.recipe_id
+                           ORDER BY
+                               CASE COALESCE(r.status, '')
+                                   WHEN 'published' THEN 1
+                                   WHEN 'planned'   THEN 2
+                                   ELSE                  3
+                               END,
+                               t.published_at DESC
+                       ) AS rn
                 FROM glue.culinary_services.recipe_editorial_translations_global t
                 LEFT JOIN glue.culinary_services.recipe_global r ON t.recipe_id = r.id
                 WHERE t.locale = '{locale}' AND t.market = '{market}'
                   AND t.recipe_id IN ('{id_str}')
-                  AND (r.status IS NULL OR r.status NOT IN (
-                      'In Development', 'Draft', 'Prototyping',
-                      'Cooking Test 1', 'Cooking Test 2',
-                      'Complexity Test', 'Ingredient Test',
-                      'Optimisation Test', 'Guidelines Test',
-                      'External Testing', 'Rework', 'Ready for Editorial'
-                  ))
             ),
             base AS (
                 SELECT recipe_id, title, subtitle, old_img, unique_recipe_code,
@@ -451,16 +476,24 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
                        ROW_NUMBER() OVER (PARTITION BY recipe_id ORDER BY published_at DESC) AS rn
                 FROM glue.culinary_services.recipe_segment_nutrition_global
                 WHERE market = '{market}' AND recipe_id IN ('{id_str}')
+                  AND energy <= 900
             )
             SELECT * FROM ranked WHERE rn = 1
         """,
     })
 
-    names     = res["names"].drop_duplicates(subset=["recipe_id"], keep="first")
-    nutrition = res["nutrition"].drop(columns=["rn"], errors="ignore").drop_duplicates(subset=["recipe_id"], keep="first")
+    _names_raw = res["names"]
+    names = (
+        _names_raw.drop_duplicates(subset=["recipe_id"], keep="first")
+        if "recipe_id" in _names_raw.columns else pd.DataFrame(columns=["recipe_id"])
+    )
+    _nutr_raw = res["nutrition"].drop(columns=["rn"], errors="ignore")
+    nutrition = (
+        _nutr_raw.drop_duplicates(subset=["recipe_id"], keep="first")
+        if "recipe_id" in _nutr_raw.columns else pd.DataFrame(columns=["recipe_id"])
+    )
 
-    # Ingredients + produce weight from the CPS 2-person picklist, keyed on
-    # unique_recipe_code — so it needs the names result first.
+    # Stage 3: ingredients + produce weight (keyed on unique_recipe_code from names)
     ing_agg, veggie_agg, sku_agg = _fetch_cps_ingredients(names, mkt_up, segment)
 
     # Join + final dedup
@@ -475,6 +508,10 @@ def fetch_menu(market: str, region_code: str, locale: str, segment: str,
     df["veggie_count"] = df["veggie_count"].fillna(0).astype(int)
     df["veggie_grams"] = df.get("veggie_grams", pd.Series(dtype=float)).fillna(0.0)
     df = df.drop_duplicates(subset=["recipe_id"], keep="first").reset_index(drop=True)
+
+    # Drop recipes without nutrition data (includes those filtered out by the 900 kcal cap)
+    if "energy" in df.columns:
+        df = df[pd.to_numeric(df["energy"], errors="coerce").notna()].reset_index(drop=True)
 
     # Rename columns early so dedup code can reference 'slot'
     df = df.rename(columns={
