@@ -1,4 +1,5 @@
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import pandas as pd
 from databricks import sql
 from dotenv import load_dotenv
@@ -82,13 +83,17 @@ def run_query(query: str) -> pd.DataFrame:
 
 
 def run_queries(queries: dict) -> dict:
-    """Run multiple named queries sequentially over the cached connection."""
-    results = {}
+    """Run multiple named queries in parallel over the cached connection."""
     conn = _get_connection()
-    for name, query in queries.items():
+
+    def _run_one(item):
+        name, query = item
         try:
-            results[name] = _run(query, conn)
+            return name, _run(query, conn)
         except Exception as e:
             print(f"[run_queries] '{name}' failed: {e}")
-            results[name] = pd.DataFrame()
-    return results
+            return name, pd.DataFrame()
+
+    with ThreadPoolExecutor(max_workers=len(queries)) as executor:
+        futures = [executor.submit(_run_one, item) for item in queries.items()]
+        return {name: df for name, df in (f.result() for f in as_completed(futures))}

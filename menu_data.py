@@ -150,13 +150,18 @@ def _fetch_cps_ingredients(names: pd.DataFrame, mkt_up: str, segment: str):
     if not codes:
         return empty_ing, empty_veg, empty_sku
 
+    # Single JOIN query — eliminates the second round-trip to culinary_sku
     cps = _batched_query(f"""
-        SELECT recipe_code_unique, ingredient_name, culinary_sku_name,
-               culinary_sku_code, culinary_sku_ratio
-        FROM {_CPS_TABLE}
-        WHERE market = '{mkt_up}' AND segment = '{segment}'
-          AND servings_size = {_CPS_SERVINGS}
-          AND recipe_code_unique IN ('{{ids}}')
+        SELECT p.recipe_code_unique, p.ingredient_name, p.culinary_sku_name,
+               p.culinary_sku_code, p.culinary_sku_ratio,
+               s.five_a_day, s.weight_nut_calc
+        FROM {_CPS_TABLE} p
+        LEFT JOIN glue.public_edw_base_grain_live.culinary_sku s
+               ON s.culinary_sku_code = p.culinary_sku_code
+              AND s.market = '{mkt_up}'
+        WHERE p.market = '{mkt_up}' AND p.segment = '{segment}'
+          AND p.servings_size = {_CPS_SERVINGS}
+          AND p.recipe_code_unique IN ('{{ids}}')
     """, codes)
 
     if cps.empty:
@@ -187,47 +192,27 @@ def _fetch_cps_ingredients(names: pd.DataFrame, mkt_up: str, segment: str):
         .rename(columns={"culinary_sku_name": "sku_names"})
     )
 
-    # ── 5-a-day vegetable grammage via culinary_sku lookup ─────────────────────
-    # culinary_sku.five_a_day = '["CONTRIBUTES"]' marks each SKU as counting
-    # toward 5-a-day. weight_nut_calc is the authoritative pack weight in grams.
-    # veggie_grams = sum(weight_nut_calc * culinary_sku_ratio) / servings
-    sku_codes = [str(c) for c in cps["culinary_sku_code"].dropna().unique() if str(c)]
-    sku_meta = _batched_query(f"""
-        SELECT culinary_sku_code, five_a_day, weight_nut_calc
-        FROM glue.public_edw_base_grain_live.culinary_sku
-        WHERE market = '{mkt_up}'
-          AND culinary_sku_code IN ('{{ids}}')
-    """, sku_codes)
+    # ── 5-a-day vegetable grammage ─────────────────────────────────────────────
+    # five_a_day / weight_nut_calc already joined above — no second query needed.
+    contributes = cps[
+        cps["culinary_sku_code"].str.startswith("PHF", na=False)
+        & cps["five_a_day"].fillna("").str.contains("CONTRIBUTES", na=False)
+        & ~cps["five_a_day"].fillna("").str.contains("DOES_NOT", na=False)
+    ].copy()
 
-    if not sku_meta.empty:
-        sku_meta = sku_meta.drop_duplicates(subset=["culinary_sku_code"], keep="first")
-        cps_veg = cps.merge(sku_meta, on="culinary_sku_code", how="left")
-        # PHF (Produce, Herbs & Fruits) SKUs where five_a_day = CONTRIBUTES only.
-        # Any PHF SKU tagged DOES_NOT_CONTRIBUTE is explicitly excluded.
-        # Non-PHF SKUs are excluded regardless of their five_a_day tag.
-        contributes = cps_veg[
-            cps_veg["culinary_sku_code"].str.startswith("PHF", na=False)
-            & cps_veg["five_a_day"].fillna("").str.contains("CONTRIBUTES", na=False)
-            & ~cps_veg["five_a_day"].fillna("").str.contains("DOES_NOT", na=False)
-        ].copy()
-        if not contributes.empty:
-            ratio  = pd.to_numeric(contributes["culinary_sku_ratio"], errors="coerce").fillna(0.0)
-            weight = pd.to_numeric(contributes["weight_nut_calc"],    errors="coerce").fillna(0.0)
-            contributes["_g"] = weight * ratio
-            veggie_agg = (
-                contributes.groupby("recipe_id")
-                .agg(veggie_count=("ingredient_name", "nunique"), veggie_grams=("_g", "sum"))
-                .reset_index()
-            )
-            veggie_agg["veggie_grams"] = (veggie_agg["veggie_grams"] / _CPS_SERVINGS).round(0)
-        else:
-            veggie_agg = empty_veg
-        # Always return here — never fall through to the PHF fallback when
-        # sku_meta is available, as the fallback has no five_a_day awareness.
+    if not contributes.empty:
+        ratio  = pd.to_numeric(contributes["culinary_sku_ratio"], errors="coerce").fillna(0.0)
+        weight = pd.to_numeric(contributes["weight_nut_calc"],    errors="coerce").fillna(0.0)
+        contributes["_g"] = weight * ratio
+        veggie_agg = (
+            contributes.groupby("recipe_id")
+            .agg(veggie_count=("ingredient_name", "nunique"), veggie_grams=("_g", "sum"))
+            .reset_index()
+        )
+        veggie_agg["veggie_grams"] = (veggie_agg["veggie_grams"] / _CPS_SERVINGS).round(0)
         return ing_agg, veggie_agg, sku_agg
 
-    # Fallback (sku_meta unavailable): estimate from PHF SKU pack weights.
-    # No five_a_day data available here — all PHF items are counted.
+    # Fallback: five_a_day data missing — estimate from PHF pack weights
     phf = cps[cps["culinary_sku_code"].str.contains("PHF", na=False)].copy()
     if phf.empty:
         return ing_agg, empty_veg, sku_agg
